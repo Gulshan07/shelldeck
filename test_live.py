@@ -165,6 +165,18 @@ async def main():
         assert b"SECRETBLOB" not in store.CONFIG.read_bytes()
         assert b"SECRETBLOB" not in store.VAULT.read_bytes(), "Ásbrú password was imported!"
         print("ok  Ásbrú import keeps group, drops the encrypted password entirely")
+        # editing a KEY connection without re-entering the PEM must keep the key.
+        rc = await http.post("/api/connections", json={
+            "name": "keyconn", "group": "g", "host": "10.5.5.5", "port": 22, "user": "ubuntu",
+            "auth": "key", "key_pem": "-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----"})
+        kid = rc.json()["id"]
+        assert "AAAA" in server.vault.get(kid)["key_pem"]
+        await http.post("/api/connections", json={
+            "id": kid, "name": "keyconn2", "group": "g", "host": "10.5.5.5",
+            "port": 22, "user": "ubuntu", "auth": "key"})     # no key_pem in the edit
+        assert "AAAA" in server.vault.get(kid)["key_pem"], "editing wiped the stored key"
+        await http.delete(f"/api/connections/{kid}")
+        print("ok  editing a key connection without re-entering the PEM keeps the key")
 
     # --- VPN profile storage: nothing sensitive in plain config -------------
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,

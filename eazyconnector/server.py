@@ -120,10 +120,14 @@ async def connections(request):
     rest = [c for c in cfg["connections"] if c["id"] != conn["id"]]
     cfg["connections"] = sorted(rest + [conn], key=lambda c: (c["group"], c["name"]))
     store.save_config(cfg)
+    # The editor never shows stored secrets (they never leave the server), so a blank
+    # field means "unchanged", not "clear it" — otherwise editing a key connection
+    # and saving would wipe the key it never displayed.
+    old = vault.get(conn["id"])
     vault.put(conn["id"], {
-        "password": body.get("password"),
-        "key_pem": body.get("key_pem"),
-        "passphrase": body.get("passphrase"),
+        "password": body.get("password") or old.get("password"),
+        "key_pem": body.get("key_pem") or old.get("key_pem"),
+        "passphrase": body.get("passphrase") or old.get("passphrase"),
     })
     return JSONResponse(conn)
 
@@ -176,13 +180,18 @@ async def import_preview(request):
 
     existing = {_dupe_key(c) for c in store.load_config()["connections"]}
     groups = {}
-    key_missing = []
+    key_missing, key_unreadable = [], []
     for c in conns:
         c["_dupe"] = _dupe_key(c) in existing
         groups[c["group"]] = groups.get(c["group"], 0) + 1
         kf = c.get("_keyfile")
         if kf and not os.path.exists(kf):
             key_missing.append(kf)
+        elif kf:
+            try:
+                open(kf, "rb").close()
+            except OSError:
+                key_unreadable.append(kf)
     return JSONResponse({
         "path": os.path.expanduser(path),
         "total": len(conns),
@@ -190,6 +199,7 @@ async def import_preview(request):
         "duplicates": sum(c["_dupe"] for c in conns),
         "groups": sorted(groups),
         "key_files_missing": sorted(set(key_missing)),
+        "key_files_unreadable": sorted(set(key_unreadable)),
         "warnings": warnings,
         "connections": [{"name": c["name"], "group": c["group"],
                          "target": f"{c['user']}@{c['host']}:{c['port']}" if c["user"] else f"{c['host']}:{c['port']}",
@@ -247,8 +257,11 @@ async def import_commit(request):
                 secrets_["key_pem"] = open(kf, encoding="utf-8", errors="strict").read()
                 key_read += 1
             except Exception as e:
-                key_failed.append(f"{c['name']}: {kf} ({type(e).__name__})")
-                c["auth"] = "password"     # fall back so the entry is still usable
+                # Keep auth=key so connecting says "add the key" rather than silently
+                # trying an empty password. Report why (often the file is root-owned).
+                reason = "permission denied" if isinstance(e, PermissionError) else \
+                         "not found" if isinstance(e, FileNotFoundError) else type(e).__name__
+                key_failed.append(f"{c['name']}: cannot read {kf} ({reason})")
         cfg["connections"].append(c)
         vault.put(c["id"], secrets_)
         created += 1
@@ -413,9 +426,17 @@ async def _connect(conn, cid, ws, tunnel=None):
         host=conn["host"], port=conn["port"], username=conn["user"],
         known_hosts=str(store.KNOWN_HOSTS), keepalive_interval=30, tunnel=tunnel,
     )
-    if conn["auth"] == "key" and secrets_.get("key_pem"):
-        kwargs["client_keys"] = [asyncssh.import_private_key(
-            secrets_["key_pem"], secrets_.get("passphrase") or None)]
+    if conn["auth"] == "key":
+        if not secrets_.get("key_pem"):
+            raise ValueError(f"{conn['name']}: no private key stored — open the connection and add "
+                             "the key file, or switch Auth to Password")
+        try:
+            key = asyncssh.import_private_key(
+                secrets_["key_pem"], secrets_.get("passphrase") or None)
+        except asyncssh.KeyImportError as e:
+            raise ValueError(f"{conn['name']}: could not load the private key "
+                             f"({e}). If it is passphrase-protected, add the passphrase.")
+        kwargs["client_keys"] = [key]
     else:
         kwargs["password"] = secrets_.get("password") or ""
         kwargs["client_keys"] = []

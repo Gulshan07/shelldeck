@@ -183,6 +183,24 @@ def test_import_asbru():
     assert not any("pass" in c or "ENCRYPTED" in str(c.values()) for c in conns)
 
 
+def test_import_unreadable_key_stays_key_auth():
+    """A key file that exists but cannot be read must not become a silent
+    empty-password connection; it stays key-auth and fails loudly at connect."""
+    import os, tempfile, stat
+    from eazyconnector.importers import from_asbru
+
+    kf = tempfile.mktemp(suffix=".pem")
+    open(kf, "w").write("KEY")
+    os.chmod(kf, 0)                       # unreadable (root-owned files look like this)
+    data = {"environments": {"c": {"name": "x", "method": "SSH", "ip": "h",
+            "passphrase user": "u", "public key": kf, "parent": "__PAC__ROOT__"}}}
+    conns, _ = from_asbru(data)
+    c = conns[0]
+    assert c["auth"] == "key" and c["_keyfile"] == kf, \
+        "an unreadable key must stay key-auth so the failure is visible, not fall to password"
+    os.chmod(kf, 0o600); os.unlink(kf)
+
+
 def test_origin_guard():
     def scope(origin, host="127.0.0.1:9999"):
         h = [(b"host", host.encode())]

@@ -157,6 +157,9 @@ function renderPreview(p) {
       <span class="imeta">${esc(c.target)} · ${c.auth}</span>
     </div>`).join("");
   const w = [...(p.warnings || [])];
+  if (p.key_files_unreadable?.length)
+    w.push(`${p.key_files_unreadable.length} key file(s) exist but cannot be read (often root-owned). Fix with: sudo chown $USER <file>`,
+           ...p.key_files_unreadable);
   if (p.key_files_missing?.length)
     w.push(`${p.key_files_missing.length} key file(s) not found on disk — those connections import but the key must be re-added:`,
            ...p.key_files_missing);
