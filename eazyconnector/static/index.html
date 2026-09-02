@@ -23,6 +23,7 @@
     <div class="side-head">
       <strong>Connections</strong>
       <button id="help-btn" title="Help (F1)">?</button>
+      <button id="import-btn" title="Import from ssh_config or Ásbrú">&#8681;</button>
       <button id="new-btn" title="New connection">+</button>
     </div>
     <input id="filter" placeholder="Search…">
@@ -72,6 +73,25 @@
       <button value="save" id="save-btn">Save</button>
     </menu>
   </form>
+</dialog>
+
+<dialog id="import-dlg">
+  <h2>Import connections</h2>
+  <div class="import-src">
+    <button data-src="ssh_config">from ~/.ssh/config</button>
+    <button data-src="asbru">from Ásbrú</button>
+  </div>
+  <p class="note">Structure, hosts and key-file paths only. Saved passwords are never read.
+    Key files are copied into the vault. Duplicates (same host, user and port) are skipped.</p>
+  <div id="import-preview" hidden>
+    <div id="import-summary"></div>
+    <div id="import-list"></div>
+    <div id="import-warn"></div>
+  </div>
+  <menu>
+    <button id="import-cancel">Close</button>
+    <button id="import-go" hidden>Import</button>
+  </menu>
 </dialog>
 
 <dialog id="vpn-editor">
@@ -134,6 +154,14 @@
       <tr><td>&#9998; / &#10005; icons</td><td>edit or delete a connection</td></tr>
       <tr><td><b>+</b> top right</td><td>add a new connection</td></tr>
     </table>
+  </section>
+
+  <section>
+    <h3>Importing</h3>
+    <p>The <b>&#8681;</b> button imports connections from <code>~/.ssh/config</code> or Ásbrú.
+    You get a preview &mdash; grouped, with jump-host links resolved and any missing key files
+    flagged &mdash; before anything is created. Only structure and key-file paths are read; saved
+    passwords are never touched. Re-importing skips anything already present.</p>
   </section>
 
   <section>

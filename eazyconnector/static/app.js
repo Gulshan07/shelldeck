@@ -114,6 +114,74 @@ function syncAuthFields() {
 }
 $("#conn-form").auth.onchange = syncAuthFields;
 $("#new-btn").onclick = () => openEditor(null);
+
+// --- import -------------------------------------------------------------
+
+let importSource = null;
+
+$("#import-btn").onclick = () => {
+  importSource = null;
+  $("#import-preview").hidden = true;
+  $("#import-go").hidden = true;
+  $("#import-dlg").showModal();
+};
+$("#import-cancel").onclick = () => $("#import-dlg").close();
+
+$("#import-dlg").querySelectorAll(".import-src button").forEach((b) => {
+  b.onclick = async () => {
+    importSource = b.dataset.src;
+    $("#import-summary").innerHTML = "Reading…";
+    $("#import-preview").hidden = false;
+    $("#import-go").hidden = true;
+    try {
+      const p = await api(`/api/import/${importSource}/preview`);
+      renderPreview(p);
+    } catch (err) {
+      $("#import-summary").innerHTML = `<span style="color:#e5707a">${esc(err.message)}</span>`;
+      $("#import-list").innerHTML = "";
+      $("#import-warn").textContent = "";
+    }
+  };
+});
+
+function renderPreview(p) {
+  $("#import-summary").innerHTML =
+    `<b>${p.new}</b> new connection${p.new === 1 ? "" : "s"} in ${p.groups.length} group${
+      p.groups.length === 1 ? "" : "s"}` +
+    (p.duplicates ? ` · <span class="idupe">${p.duplicates} already present, will skip</span>` : "") +
+    `<div class="imeta">${esc(p.path)}</div>`;
+  $("#import-list").innerHTML = p.connections.map((c) => `
+    <div class="irow ${c.dupe ? "idupe" : ""}">
+      <span>${esc(c.name)}${c.dupe ? " (already present)" : ""}
+        <span class="imeta">${esc(c.group)}${c.via ? " · via " + esc(c.via) : ""}</span></span>
+      <span class="imeta">${esc(c.target)} · ${c.auth}</span>
+    </div>`).join("");
+  const w = [...(p.warnings || [])];
+  if (p.key_files_missing?.length)
+    w.push(`${p.key_files_missing.length} key file(s) not found on disk — those connections import but the key must be re-added:`,
+           ...p.key_files_missing);
+  $("#import-warn").textContent = w.join("\n");
+  $("#import-go").hidden = p.new === 0;
+}
+
+$("#import-go").onclick = async () => {
+  $("#import-go").disabled = true;
+  $("#import-summary").innerHTML = "Importing…";
+  try {
+    const r = await api(`/api/import/${importSource}/commit`, { method: "POST", body: "{}" });
+    let msg = `Imported ${r.created}, skipped ${r.skipped} duplicate(s), ${r.keys_imported} key file(s) loaded.`;
+    if (r.key_failures?.length) msg += "\nKey files that could not be read:\n" + r.key_failures.join("\n");
+    $("#import-summary").textContent = msg;
+    $("#import-list").innerHTML = "";
+    $("#import-warn").textContent = "";
+    $("#import-go").hidden = true;
+    await loadTree();
+  } catch (err) {
+    $("#import-summary").innerHTML = `<span style="color:#e5707a">${esc(err.message)}</span>`;
+  } finally {
+    $("#import-go").disabled = false;
+  }
+};
 $("#keyfile").onchange = async (e) => {
   const file = e.target.files[0];
   if (file) $("#conn-form").key_pem.value = await file.text();

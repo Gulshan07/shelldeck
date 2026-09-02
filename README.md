@@ -53,7 +53,13 @@ is stored encrypted in the vault and written to `~/.eazyconnector/run/` at
 openvpn needs root: store a sudo password in the profile, or set
 `EAZY_OPENVPN_NO_SUDO=1` if your openvpn already has the privileges it needs.
 
-Not yet: ssh_config / PuTTY import, session logging (rest of P1);
+Import from `~/.ssh/config` and Ásbrú (`asbru.yml`) is in — the ↓ button in the
+sidebar previews what will be created (grouped, jump links resolved, key files
+noted) before you commit. Structure, hosts and key-file paths only; saved
+passwords are never read. Duplicates (same host, user, port) are skipped, so
+re-importing is safe.
+
+Not yet: session logging (rest of P1); master-password change;
 clusters, macros, serial/telnet (P3).
 
 ### Using it

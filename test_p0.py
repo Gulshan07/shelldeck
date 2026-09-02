@@ -135,6 +135,54 @@ def test_management_quoting():
     assert _esc('pa"ss\\word') == 'pa\\"ss\\\\word'
 
 
+def test_import_ssh_config():
+    from eazyconnector.importers import from_ssh_config
+
+    conns, warnings = from_ssh_config(
+        "Host bastion\n  HostName 10.0.0.1\n  User ubuntu\n  IdentityFile ~/k.pem\n"
+        "Host app\n  HostName 10.0.0.2\n  User deploy\n  Port 2222\n  ProxyJump bastion\n"
+        "Host *.internal\n  User root\n")            # pattern must be skipped
+    by = {c["name"]: c for c in conns}
+    assert set(by) == {"bastion", "app"}, "host patterns should be skipped"
+    assert by["bastion"]["auth"] == "key" and by["bastion"]["_keyfile"].endswith("k.pem")
+    assert by["app"]["port"] == 2222
+    assert by["app"]["jump"] == by["bastion"]["id"], "ProxyJump must link to the bastion"
+
+    # ProxyJump to an unknown host warns and stays direct
+    conns, warnings = from_ssh_config("Host x\n  HostName h\n  ProxyJump ghost\n")
+    assert conns[0]["jump"] == "" and any("ghost" in w for w in warnings)
+
+
+def test_import_asbru():
+    from eazyconnector.importers import from_asbru
+
+    data = {"environments": {
+        "g1": {"_is_group": True, "name": "PROD", "parent": "__PAC__ROOT__"},
+        "g2": {"_is_group": True, "name": "db", "parent": "g1"},
+        "c1": {"name": "mongo", "method": "SSH", "ip": "10.0.0.9", "port": 22,
+               "passphrase user": "ubuntu", "public key": "/keys/a.pem", "parent": "g2",
+               "use proxy": 3, "jump ip": "1.2.3.4", "jump user": "ubuntu", "jump port": 22,
+               "jump key": "/keys/j.pem", "pass": "ENCRYPTED-BLOB"},
+        "c2": {"name": "web", "method": "SSH", "ip": "10.0.0.8", "port": 22,
+               "passphrase user": "ubuntu", "use proxy": 3, "jump ip": "1.2.3.4",
+               "jump user": "ubuntu", "jump port": 22, "parent": "g1"},
+        "c3": {"name": "legacy", "method": "RDP", "ip": "10.0.0.7", "parent": "g1"},
+    }}
+    conns, warnings = from_asbru(data)
+    by = {c["name"]: c for c in conns}
+
+    assert "legacy" not in by and any("RDP" in w for w in warnings), "non-SSH must be skipped"
+    assert by["mongo"]["group"] == "PROD/db"
+    assert by["mongo"]["user"] == "ubuntu", "login user comes from 'passphrase user'"
+    assert by["mongo"]["auth"] == "key" and by["mongo"]["_keyfile"] == "/keys/a.pem"
+    # a single synthesized jump host, shared by both connections that use it
+    jumps = [c for c in conns if c["group"] == "Ásbrú/jump hosts"]
+    assert len(jumps) == 1, f"expected one deduped jump host, got {len(jumps)}"
+    assert by["mongo"]["jump"] == jumps[0]["id"] == by["web"]["jump"]
+    # the encrypted password is never carried into the result
+    assert not any("pass" in c or "ENCRYPTED" in str(c.values()) for c in conns)
+
+
 def test_origin_guard():
     def scope(origin, host="127.0.0.1:9999"):
         h = [(b"host", host.encode())]

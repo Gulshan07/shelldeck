@@ -121,3 +121,17 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 #vpn-log { width:min(820px,94vw); }
 #vpn-log-text { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px;
   font-size:11px; max-height:60vh; overflow:auto; white-space:pre-wrap; color:var(--muted); }
+
+#import-dlg { width:min(680px, 94vw); max-height:88vh; overflow:auto; }
+.import-src { display:flex; gap:8px; margin-bottom:10px; }
+.import-src button { flex:1; padding:10px; }
+#import-summary { margin:12px 0 8px; font-size:14px; }
+#import-summary b { color:var(--accent); }
+#import-list { max-height:40vh; overflow:auto; border:1px solid var(--line); border-radius:6px; }
+#import-list .irow { display:grid; grid-template-columns:1fr auto; gap:8px; padding:5px 10px;
+  border-bottom:1px solid var(--line); font-size:12px; }
+#import-list .irow:last-child { border-bottom:none; }
+#import-list .idupe { color:var(--muted); }
+#import-list .imeta { color:var(--muted); }
+#import-warn { color:#e0b341; font-size:12px; margin-top:8px; white-space:pre-wrap; }
+#import-btn { padding:2px 9px; }

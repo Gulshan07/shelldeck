@@ -119,6 +119,53 @@ async def main():
     except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidStatus):
         print("ok  cross-origin WebSocket refused")
 
+    # --- import from ssh_config and Ásbrú -----------------------------------
+    import tempfile as _tf, yaml as _yaml
+    keyfile = _tf.mktemp(suffix=".pem")
+    open(keyfile, "w").write("-----BEGIN OPENSSH PRIVATE KEY-----\nFAKEKEYDATA\n-----END OPENSSH PRIVATE KEY-----\n")
+    sshcfg = _tf.mktemp()
+    open(sshcfg, "w").write(
+        f"Host jump\n  HostName 10.9.0.1\n  User ubuntu\n  IdentityFile {keyfile}\n"
+        f"Host app\n  HostName 10.9.0.2\n  User deploy\n  ProxyJump jump\n")
+    asbrufile = _tf.mktemp(suffix=".yml")
+    _yaml.safe_dump({"environments": {
+        "g": {"_is_group": True, "name": "PROD", "parent": "__PAC__ROOT__"},
+        "c": {"name": "abox", "method": "SSH", "ip": "10.9.0.3", "port": 22,
+              "passphrase user": "ubuntu", "parent": "g", "pass": "SECRETBLOB"}}}, open(asbrufile, "w"))
+
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as http:
+        r = await http.post("/api/import/ssh_config/preview", json={"path": sshcfg})
+        pv = r.json()
+        assert r.status_code == 200, pv
+        assert pv["new"] == 2 and pv["duplicates"] == 0, pv
+        assert any(c["via"] == "jump" for c in pv["connections"]), "ProxyJump link missing in preview"
+        print("ok  ssh_config preview: 2 new, jump link resolved")
+
+        r = await http.post("/api/import/ssh_config/commit", json={"path": sshcfg})
+        assert r.json()["created"] == 2 and r.json()["keys_imported"] == 1, r.json()
+        cfg = store.load_config()
+        app = next(c for c in cfg["connections"] if c["name"] == "app")
+        jump = next(c for c in cfg["connections"] if c["name"] == "jump")
+        assert app["jump"] == jump["id"], "jump link broken after commit"
+        assert "FAKEKEYDATA" in server.vault.get(jump["id"])["key_pem"], "key not read into vault"
+        assert b"FAKEKEYDATA" not in store.CONFIG.read_bytes(), "key leaked into plain config"
+        print("ok  ssh_config commit: linked, key in vault, not in config")
+
+        # re-import is idempotent
+        r = await http.post("/api/import/ssh_config/commit", json={"path": sshcfg})
+        assert r.json()["created"] == 0 and r.json()["skipped"] == 2, r.json()
+        print("ok  re-import skips duplicates")
+
+        # Ásbrú, and the encrypted password must never appear anywhere
+        r = await http.post("/api/import/asbru/commit", json={"path": asbrufile})
+        assert r.json()["created"] == 1, r.json()
+        abox = next(c for c in store.load_config()["connections"] if c["name"] == "abox")
+        assert abox["group"] == "PROD" and abox["user"] == "ubuntu"
+        assert b"SECRETBLOB" not in store.CONFIG.read_bytes()
+        assert b"SECRETBLOB" not in store.VAULT.read_bytes(), "Ásbrú password was imported!"
+        print("ok  Ásbrú import keeps group, drops the encrypted password entirely")
+
     # --- VPN profile storage: nothing sensitive in plain config -------------
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as http:

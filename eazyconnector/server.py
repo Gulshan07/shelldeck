@@ -2,6 +2,7 @@
 import asyncio
 import contextlib
 import json
+import os
 import posixpath
 import secrets
 import shlex
@@ -18,6 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import store
 from .vpn import Vpn, VpnError, detect_dialect
+from . import importers
 
 STATIC = Path(__file__).parent / "static"
 IDLE_LOCK_SECONDS = 15 * 60
@@ -134,6 +136,127 @@ async def delete_connection(request):
     store.save_config(cfg)
     vault.delete(cid)
     return JSONResponse({"deleted": cid})
+
+
+# --- import --------------------------------------------------------------
+
+IMPORT_SOURCES = {
+    "ssh_config": ("~/.ssh/config", "ssh"),
+    "asbru": ("~/.config/asbru/asbru.yml", "asbru"),
+}
+
+
+def _parse_source(source: str, path: str):
+    fp = os.path.expanduser(path)
+    if not os.path.exists(fp):
+        raise FileNotFoundError(fp)
+    if source == "ssh_config":
+        return importers.from_ssh_config(open(fp, encoding="utf-8", errors="replace").read())
+    import yaml
+    return importers.from_asbru(yaml.safe_load(open(fp, encoding="utf-8", errors="replace")))
+
+
+def _dupe_key(c):
+    return (c["host"].strip().lower(), c["user"].strip().lower(), int(c["port"]))
+
+
+@api
+async def import_preview(request):
+    source = request.path_params["source"]
+    if source not in IMPORT_SOURCES:
+        return JSONResponse({"error": "unknown source"}, status_code=404)
+    default_path, _ = IMPORT_SOURCES[source]
+    path = (await request.json()).get("path") or default_path if request.method == "POST" else default_path
+    try:
+        conns, warnings = await asyncio.to_thread(_parse_source, source, path)
+    except FileNotFoundError as e:
+        return JSONResponse({"error": f"not found: {e}"}, status_code=404)
+    except Exception as e:
+        return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=400)
+
+    existing = {_dupe_key(c) for c in store.load_config()["connections"]}
+    groups = {}
+    key_missing = []
+    for c in conns:
+        c["_dupe"] = _dupe_key(c) in existing
+        groups[c["group"]] = groups.get(c["group"], 0) + 1
+        kf = c.get("_keyfile")
+        if kf and not os.path.exists(kf):
+            key_missing.append(kf)
+    return JSONResponse({
+        "path": os.path.expanduser(path),
+        "total": len(conns),
+        "new": sum(not c["_dupe"] for c in conns),
+        "duplicates": sum(c["_dupe"] for c in conns),
+        "groups": sorted(groups),
+        "key_files_missing": sorted(set(key_missing)),
+        "warnings": warnings,
+        "connections": [{"name": c["name"], "group": c["group"],
+                         "target": f"{c['user']}@{c['host']}:{c['port']}" if c["user"] else f"{c['host']}:{c['port']}",
+                         "auth": c["auth"], "dupe": c["_dupe"],
+                         "via": next((x["name"] for x in conns if x["id"] == c["jump"]), "")}
+                        for c in conns],
+    })
+
+
+@api
+async def import_commit(request):
+    source = request.path_params["source"]
+    if source not in IMPORT_SOURCES:
+        return JSONResponse({"error": "unknown source"}, status_code=404)
+    if not vault.unlocked:
+        return JSONResponse({"error": "locked"}, status_code=423)
+    body = await request.json()
+    path = body.get("path") or IMPORT_SOURCES[source][0]
+    try:
+        conns, warnings = await asyncio.to_thread(_parse_source, source, path)
+    except Exception as e:
+        return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=400)
+
+    cfg = store.load_config()
+    existing = {_dupe_key(c) for c in cfg["connections"]}
+    # A jump host we skip as a duplicate must still resolve to the connection the
+    # user already has, so links do not dangle.
+    id_remap = {}
+    for c in cfg["connections"]:
+        id_remap.setdefault(_dupe_key(c), c["id"])
+
+    created, skipped, key_read, key_failed = 0, 0, 0, []
+    to_add = []
+    for c in conns:
+        dk = _dupe_key(c)
+        if dk in existing:
+            id_remap.setdefault(dk, id_remap.get(dk, c["id"]))
+            skipped += 1
+            continue
+        id_remap[dk] = c["id"]
+        existing.add(dk)
+        to_add.append(c)
+
+    for c in to_add:
+        # Re-point a jump to whatever real id its target ended up with (existing or new).
+        if c["jump"]:
+            tgt = next((x for x in conns if x["id"] == c["jump"]), None)
+            if tgt:
+                c["jump"] = id_remap.get(_dupe_key(tgt), c["jump"])
+        kf = c.pop("_keyfile", None)
+        c.pop("_dupe", None)
+        secrets_ = {}
+        if c["auth"] == "key" and kf:
+            try:
+                secrets_["key_pem"] = open(kf, encoding="utf-8", errors="strict").read()
+                key_read += 1
+            except Exception as e:
+                key_failed.append(f"{c['name']}: {kf} ({type(e).__name__})")
+                c["auth"] = "password"     # fall back so the entry is still usable
+        cfg["connections"].append(c)
+        vault.put(c["id"], secrets_)
+        created += 1
+
+    cfg["connections"].sort(key=lambda c: (c["group"], c["name"]))
+    store.save_config(cfg)
+    return JSONResponse({"created": created, "skipped": skipped, "keys_imported": key_read,
+                         "key_failures": key_failed, "warnings": warnings})
 
 
 # --- vpn -----------------------------------------------------------------
@@ -562,6 +685,8 @@ app = Starlette(
         Route("/api/vault/lock", vault_lock, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
+        Route("/api/import/{source}/preview", import_preview, methods=["GET", "POST"]),
+        Route("/api/import/{source}/commit", import_commit, methods=["POST"]),
         Route("/api/vpns", vpns, methods=["GET", "POST"]),
         Route("/api/vpns/{vid}", delete_vpn, methods=["DELETE"]),
         Route("/api/vpn/status", vpn_status),
