@@ -25,6 +25,7 @@ def start_fake_sshd():
         def begin_auth(self, username): return True
         def password_auth_supported(self): return True
         def validate_password(self, username, password): return password == PW
+        def connection_requested(self, *a): return True  # allow use as a jump host
 
     loop = asyncio.new_event_loop()
     ready = threading.Event()
@@ -86,6 +87,32 @@ def main():
             ws.send_json({"token": server.TOKEN, "id": cid, "cols": 80, "rows": 24})
             assert ws.receive_json()["type"] == "ready", "should trust the pinned key now"
         print("ok  trusted host reconnects without prompting")
+
+        # --- jump host: target reachable only through the hop ---------------
+        r = c.post("/api/connections", headers=auth, json={
+            "name": "behind-jump", "group": "lab", "host": "127.0.0.1", "port": PORT,
+            "user": "gulshan", "auth": "password", "password": PW, "jump": cid})
+        jid = r.json()["id"]
+
+        with c.websocket_connect("/ws/ssh") as ws:
+            ws.send_json({"token": server.TOKEN, "id": jid, "cols": 80, "rows": 24})
+            assert ws.receive_json()["type"] == "ready", "jump-host connect failed"
+            ws.send_bytes(b"through the hop\n")
+            buf = b""
+            while b"you said" not in buf:
+                buf += ws.receive_bytes()
+            assert b"you said: through the hop" in buf
+        print("ok  connected through a jump host")
+
+        # --- loop protection ------------------------------------------------
+        c.post("/api/connections", headers=auth, json={
+            "id": cid, "name": "test", "group": "lab", "host": "127.0.0.1", "port": PORT,
+            "user": "gulshan", "auth": "password", "password": PW, "jump": jid})
+        with c.websocket_connect("/ws/ssh") as ws:
+            ws.send_json({"token": server.TOKEN, "id": jid, "cols": 80, "rows": 24})
+            msg = ws.receive_json()
+            assert msg["type"] == "error" and "loop" in msg["message"], msg
+        print("ok  jump-host loop refused:", msg["message"])
 
     print("\ne2e passed")
 

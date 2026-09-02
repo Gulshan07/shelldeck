@@ -62,7 +62,7 @@ function renderTree() {
       ${list.map((c) => `
         <div class="conn" data-id="${c.id}">
           <span class="conn-name">${esc(c.name)}</span>
-          <span class="conn-host">${esc(c.user)}@${esc(c.host)}</span>
+          <span class="conn-host">${esc(c.user)}@${esc(c.host)}${c.jump ? " ⇢ via " + esc((conns.find((j) => j.id === c.jump) || {}).name || "?") : ""}</span>
           <button class="edit" data-id="${c.id}" title="Edit">✎</button>
           <button class="del" data-id="${c.id}" title="Delete">✕</button>
         </div>`).join("")}
@@ -88,6 +88,10 @@ $("#filter").oninput = renderTree;
 function openEditor(conn) {
   const f = $("#conn-form");
   f.reset();
+  // A connection can't be its own jump host; deeper loops are caught server-side.
+  f.jump.innerHTML = '<option value="">— direct —</option>' +
+    conns.filter((c) => c.id !== conn?.id)
+         .map((c) => `<option value="${c.id}">${esc(c.name)} (${esc(c.host)})</option>`).join("");
   if (conn) for (const [k, v] of Object.entries(conn)) if (f[k]) f[k].value = v;
   syncAuthFields();
   $("#editor").showModal();
@@ -150,7 +154,7 @@ function connect(id) {
 }
 
 function askHostKey(conn, msg) {
-  $("#hk-host").textContent = `${conn.host}:${conn.port}`;
+  $("#hk-host").textContent = `${msg.name} — ${msg.host}`;
   $("#hk-fp").textContent = `${msg.algo}\n${msg.fingerprint}`;
   $("#hostkey").showModal();
   const answer = (accept) => { $("#hostkey").close(); ws.send(JSON.stringify({ accept })); };

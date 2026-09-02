@@ -102,6 +102,7 @@ async def connections(request):
         "port": int(body.get("port") or 22),
         "user": body["user"],
         "auth": body.get("auth", "password"),
+        "jump": body.get("jump", ""),
     }
     rest = [c for c in cfg["connections"] if c["id"] != conn["id"]]
     cfg["connections"] = sorted(rest + [conn], key=lambda c: (c["group"], c["name"]))
@@ -127,12 +128,30 @@ async def delete_connection(request):
 # --- ssh -----------------------------------------------------------------
 
 
-async def _connect(conn, cid, ws):
+def _find(cid):
+    return next((c for c in store.load_config()["connections"] if c["id"] == cid), None)
+
+
+async def _open_chain(cid, ws, stack, chain=()):
+    """Open a connection, first opening its jump host (recursively) as a tunnel."""
+    conn = _find(cid)
+    if conn is None:
+        raise ValueError("connection not found")
+    if cid in chain:
+        raise ValueError("jump host chain loops back on itself")
+    tunnel = None
+    if conn.get("jump"):
+        tunnel = await _open_chain(conn["jump"], ws, stack, chain + (cid,))
+    client = await _connect(conn, cid, ws, tunnel)
+    return await stack.enter_async_context(client)
+
+
+async def _connect(conn, cid, ws, tunnel=None):
     """Connect with TOFU host-key verification. Never disables verification."""
     secrets_ = vault.get(cid)
     kwargs = dict(
         host=conn["host"], port=conn["port"], username=conn["user"],
-        known_hosts=str(store.KNOWN_HOSTS), keepalive_interval=30,
+        known_hosts=str(store.KNOWN_HOSTS), keepalive_interval=30, tunnel=tunnel,
     )
     if conn["auth"] == "key" and secrets_.get("key_pem"):
         kwargs["client_keys"] = [asyncssh.import_private_key(
@@ -145,9 +164,10 @@ async def _connect(conn, cid, ws):
     try:
         return await asyncssh.connect(**kwargs)
     except asyncssh.HostKeyNotVerifiable:
-        key = await asyncssh.get_server_host_key(conn["host"], port=conn["port"])
-        fp = key.get_fingerprint()
-        await ws.send_json({"type": "hostkey", "fingerprint": fp, "algo": key.get_algorithm()})
+        key = await asyncssh.get_server_host_key(conn["host"], port=conn["port"], tunnel=tunnel)
+        await ws.send_json({"type": "hostkey", "host": f"{conn['host']}:{conn['port']}",
+                            "name": conn["name"], "fingerprint": key.get_fingerprint(),
+                            "algo": key.get_algorithm()})
         reply = await ws.receive_json()
         if reply.get("accept") is not True:
             raise ConnectionAbortedError("host key rejected")
@@ -170,20 +190,20 @@ async def ssh_ws(ws):
     _touch()
 
     cid = first.get("id")
-    conn = next((c for c in store.load_config()["connections"] if c["id"] == cid), None)
+    conn = _find(cid)
     if conn is None or not vault.unlocked:
         await ws.send_json({"type": "error", "message": "unknown connection or vault locked"})
         await ws.close()
         return
 
-    try:
-        client = await _connect(conn, cid, ws)
-    except Exception as e:
-        await ws.send_json({"type": "error", "message": f"{type(e).__name__}: {e}"})
-        await ws.close()
-        return
+    async with contextlib.AsyncExitStack() as stack:
+        try:
+            client = await _open_chain(cid, ws, stack)
+        except Exception as e:
+            await ws.send_json({"type": "error", "message": f"{type(e).__name__}: {e}"})
+            await ws.close()
+            return
 
-    async with client:
         proc = await client.create_process(
             term_type="xterm-256color",
             term_size=(first.get("cols", 80), first.get("rows", 24)),
