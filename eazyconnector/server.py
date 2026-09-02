@@ -17,12 +17,14 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from . import store
+from .vpn import Vpn, VpnError, detect_dialect
 
 STATIC = Path(__file__).parent / "static"
 IDLE_LOCK_SECONDS = 15 * 60
 
 TOKEN = secrets.token_urlsafe(32)
 vault = store.Vault()
+vpn = Vpn()
 _last_activity = time.monotonic()
 
 
@@ -132,6 +134,74 @@ async def delete_connection(request):
     store.save_config(cfg)
     vault.delete(cid)
     return JSONResponse({"deleted": cid})
+
+
+# --- vpn -----------------------------------------------------------------
+
+
+@api
+async def vpns(request):
+    cfg = store.load_config()
+    if request.method == "GET":
+        return JSONResponse(cfg.get("vpns", []))
+
+    body = await request.json()
+    ovpn = body.get("ovpn") or ""
+    prof = {
+        "id": body.get("id") or uuid.uuid4().hex,
+        "name": body["name"],
+        "username": body.get("username", ""),
+        "dialect": body.get("dialect") or "auto",
+    }
+    rest = [v for v in cfg.get("vpns", []) if v["id"] != prof["id"]]
+    cfg["vpns"] = sorted(rest + [prof], key=lambda v: v["name"])
+    store.save_config(cfg)
+
+    old = vault.get("vpn:" + prof["id"])
+    vault.put("vpn:" + prof["id"], {
+        # Keep the previously imported profile when the form leaves the box empty.
+        "ovpn": ovpn or old.get("ovpn"),
+        "password": body.get("password") or old.get("password"),
+        "totp_secret": (body.get("totp_secret") or old.get("totp_secret") or "").replace(" ", ""),
+        "key_passphrase": body.get("key_passphrase") or old.get("key_passphrase"),
+        "sudo_password": body.get("sudo_password") or old.get("sudo_password"),
+    })
+    prof["detected"] = detect_dialect(ovpn or old.get("ovpn") or "")
+    return JSONResponse(prof)
+
+
+@api
+async def delete_vpn(request):
+    vid = request.path_params["vid"]
+    cfg = store.load_config()
+    cfg["vpns"] = [v for v in cfg.get("vpns", []) if v["id"] != vid]
+    store.save_config(cfg)
+    vault.delete("vpn:" + vid)
+    return JSONResponse({"deleted": vid})
+
+
+@api
+async def vpn_status(request):
+    return JSONResponse(vpn.status())
+
+
+@api
+async def vpn_up(request):
+    vid = request.path_params["vid"]
+    prof = next((v for v in store.load_config().get("vpns", []) if v["id"] == vid), None)
+    if prof is None:
+        return JSONResponse({"error": "unknown vpn profile"}, status_code=404)
+    try:
+        await vpn.up(prof, vault.get("vpn:" + vid))
+    except VpnError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(vpn.status())
+
+
+@api
+async def vpn_down(request):
+    await vpn.down()
+    return JSONResponse(vpn.status())
 
 
 # --- ssh -----------------------------------------------------------------
@@ -492,6 +562,11 @@ app = Starlette(
         Route("/api/vault/lock", vault_lock, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
+        Route("/api/vpns", vpns, methods=["GET", "POST"]),
+        Route("/api/vpns/{vid}", delete_vpn, methods=["DELETE"]),
+        Route("/api/vpn/status", vpn_status),
+        Route("/api/vpn/{vid}/up", vpn_up, methods=["POST"]),
+        Route("/api/vpn/down", vpn_down, methods=["POST"]),
         WebSocketRoute("/ws/ssh", ssh_ws),
         WebSocketRoute("/ws/sftp", sftp_ws),
         Mount("/static", StaticFiles(directory=STATIC)),

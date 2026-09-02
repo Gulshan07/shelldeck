@@ -89,6 +89,52 @@ def test_parse_forward():
             pass
 
 
+def test_totp_rfc6238():
+    """RFC 6238 Appendix B test vectors (SHA-1, 8 digits, seed "12345678901234567890")."""
+    import base64
+    from eazyconnector.vpn import totp
+
+    seed = base64.b32encode(b"12345678901234567890").decode()
+    for when, expected in [(59, "94287082"), (1111111109, "07081804"), (1111111111, "14050471"),
+                           (1234567890, "89005924"), (2000000000, "69279037"),
+                           (20000000000, "65353130")]:
+        got = totp(seed, when=when, digits=8)
+        assert got == expected, f"t={when}: got {got}, want {expected}"
+
+    # formatting details that break real logins
+    assert len(totp(seed, when=59)) == 6
+    assert totp("jbswy 3dp ehpk3pxp", when=59) == totp("JBSWY3DPEHPK3PXP", when=59), \
+        "must tolerate lowercase and the spaces authenticator apps display"
+    # same 30s window -> same code; next window -> different
+    assert totp(seed, when=100) == totp(seed, when=119)
+    assert totp(seed, when=100) != totp(seed, when=130)
+
+
+def test_vpn_password_dialects():
+    import base64
+    from eazyconnector.vpn import build_password, detect_dialect
+
+    assert build_password("concat", "hunter2", "123456") == "hunter2123456"
+    scrv1 = build_password("scrv1", "hunter2", "123456")
+    kind, pw, code = scrv1.split(":")
+    assert kind == "SCRV1"
+    assert base64.b64decode(pw) == b"hunter2" and base64.b64decode(code) == b"123456"
+    # a password containing ':' must survive, which is exactly why base64 is used
+    weird = build_password("scrv1", "a:b:c", "000001")
+    assert base64.b64decode(weird.split(":")[1]) == b"a:b:c"
+    # no TOTP configured -> password unchanged
+    assert build_password("scrv1", "hunter2", "") == "hunter2"
+
+    # the real Vitraya profile's directive picks SCRV1
+    assert detect_dialect('client\nstatic-challenge "Enter Authenticator Code" 1\n') == "scrv1"
+    assert detect_dialect("client\nauth-user-pass\n") == "concat"
+
+
+def test_management_quoting():
+    from eazyconnector.vpn import _esc
+    assert _esc('pa"ss\\word') == 'pa\\"ss\\\\word'
+
+
 def test_origin_guard():
     def scope(origin, host="127.0.0.1:9999"):
         h = [(b"host", host.encode())]

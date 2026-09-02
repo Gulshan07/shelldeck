@@ -18,8 +18,8 @@ async function refreshGate() {
   $("#gate-hint").textContent = v.exists ? "Unlock your vault" : "Create a master password (8+ chars)";
   $("#gate").hidden = v.unlocked;
   $("#app").hidden = !v.unlocked;
-  if (v.unlocked) { loadTree(); render(); }
-  else $("#master").focus();
+  if (v.unlocked) { loadTree(); loadVpns(); render(); }
+  else { clearTimeout(vpnTimer); $("#master").focus(); }
 }
 
 $("#unlock-form").onsubmit = async (e) => {
@@ -120,6 +120,101 @@ $("#editor").onclose = async () => {
     loadTree();
   } catch (err) { alert("Could not save: " + err.message); }
 };
+
+// --- vpn ----------------------------------------------------------------
+
+let vpns = [];
+let vpnState = { state: "disconnected", log: [] };
+let vpnTimer = null;
+
+async function loadVpns() {
+  vpns = await api("/api/vpns");
+  await pollVpn();
+}
+
+async function pollVpn() {
+  try { vpnState = await api("/api/vpn/status"); } catch (e) { return; }
+  renderVpn();
+  // Poll quickly while something is happening, slowly when it is not.
+  clearTimeout(vpnTimer);
+  const busy = vpnState.state === "connecting" || vpnState.state === "connected";
+  if (!$("#app").hidden) vpnTimer = setTimeout(pollVpn, busy ? 1500 : 6000);
+  if ($("#vpn-log").open) $("#vpn-log-text").textContent = (vpnState.log || []).join("\n");
+}
+
+function renderVpn() {
+  $("#vpn-list").innerHTML = vpns.map((v) => {
+    const active = vpnState.profile_id === v.id ? vpnState.state : "disconnected";
+    const on = active === "connected";
+    const detail = vpnState.profile_id === v.id ? vpnState.detail : "";
+    return `<div class="vpn" data-id="${v.id}">
+      <span class="vpn-name"><span class="dot ${active}"></span>${esc(v.name)}</span>
+      <span>
+        <button class="vpn-go" data-id="${v.id}">${on || active === "connecting" ? "disconnect" : "connect"}</button>
+        <button class="vpn-log" data-id="${v.id}" title="Log">&#9776;</button>
+        <button class="vpn-edit" data-id="${v.id}" title="Edit">&#9998;</button>
+        <button class="vpn-del" data-id="${v.id}" title="Delete">&#10005;</button>
+      </span>
+      ${detail ? `<span class="vpn-detail ${active === "failed" ? "bad" : ""}">${esc(detail)}${
+        on && vpnState.ip ? " &middot; " + esc(vpnState.ip) : ""}${
+        on && vpnState.uptime ? " &middot; " + fmtUptime(vpnState.uptime) : ""}</span>` : ""}
+    </div>`;
+  }).join("") || '<div class="hint">No VPN profiles yet</div>';
+
+  const on = (cls, fn) => $("#vpn-list").querySelectorAll(cls).forEach((b) =>
+    b.onclick = (e) => { e.stopPropagation(); fn(b.dataset.id); });
+  on(".vpn-go", async (id) => {
+    const active = vpnState.profile_id === id && vpnState.state !== "disconnected"
+      && vpnState.state !== "failed";
+    try {
+      await api(active ? "/api/vpn/down" : `/api/vpn/${id}/up`, { method: "POST" });
+    } catch (err) { alert(err.message); }
+    pollVpn();
+  });
+  on(".vpn-log", () => {
+    $("#vpn-log-text").textContent = (vpnState.log || []).join("\n") || "(nothing logged yet)";
+    $("#vpn-log").showModal();
+  });
+  on(".vpn-edit", (id) => openVpnEditor(vpns.find((v) => v.id === id)));
+  on(".vpn-del", async (id) => {
+    if (!confirm("Delete this VPN profile and its stored secrets?")) return;
+    await api("/api/vpns/" + id, { method: "DELETE" });
+    loadVpns();
+  });
+}
+
+const fmtUptime = (s) => s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` :
+  `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
+
+function openVpnEditor(v) {
+  const f = $("#vpn-form");
+  f.reset();
+  f.ovpn.value = "";
+  $("#ovpn-note").textContent = v
+    ? "Leave the file empty to keep the profile already stored. Blank secrets are kept too."
+    : "The whole profile, private key included, is stored encrypted in the vault and written to disk only while connected.";
+  if (v) for (const [k, val] of Object.entries(v)) if (f[k]) f[k].value = val;
+  $("#vpn-editor").showModal();
+}
+
+$("#new-vpn-btn").onclick = () => openVpnEditor(null);
+$("#ovpnfile").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("#vpn-form").ovpn.value = await file.text();
+  const sc = /^\s*static-challenge/m.test($("#vpn-form").ovpn.value);
+  $("#ovpn-note").textContent = `Loaded ${file.name} — second factor: ${
+    sc ? "static-challenge (SCRV1)" : "appended to the password"}.`;
+};
+$("#vpn-editor").onclose = async () => {
+  if ($("#vpn-editor").returnValue !== "save") return;
+  const body = Object.fromEntries(new FormData($("#vpn-form")));
+  try {
+    await api("/api/vpns", { method: "POST", body: JSON.stringify(body) });
+    loadVpns();
+  } catch (err) { alert("Could not save: " + err.message); }
+};
+$("#vpn-log-close").onclick = () => $("#vpn-log").close();
 
 // --- tabs and panes -----------------------------------------------------
 // ponytail: panes are one flat equal-width row per tab. Nested or resizable

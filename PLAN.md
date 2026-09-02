@@ -58,14 +58,14 @@ Connections reference `cred_id`. One credential reusable across many hosts.
 
 **Platform order: Linux first, macOS second, Windows third.** Anything platform-specific (elevation, keychain, serial device paths, browser launch) goes behind a tiny `platform.py` shim so 2 and 3 are a fill-in, not a rewrite.
 
-### P0 — Skeleton (walking skeleton, connect to one box)
+### P0 — Skeleton  ✅ done
 - Server + token auth + WebSocket.
 - Vault create/unlock/lock.
 - Connection tree CRUD in the UI.
 - SSH terminal with password or key auth, xterm.js, resize, reconnect.
 - **Verify:** SSH into a real server, run `top`, resize window, close cleanly.
 
-### P1 — Ásbrú parity, daily-driver
+### P1 — Ásbrú parity, daily-driver  (tabs, splits, jump hosts, forwarding, SFTP done; import + session logging left)
 - Tabs + split panes.
 - Jump/proxy hosts (chained connections).
 - Port forwarding: local `-L`, remote `-R`, dynamic SOCKS `-D`, per connection, auto-start on connect.
@@ -76,7 +76,7 @@ Connections reference `cred_id`. One credential reusable across many hosts.
 - Terminal themes, font size, copy-on-select.
 - **Verify:** replace Ásbrú for one full work week without falling back.
 
-### P2 — OpenVPN one-click
+### P2 — OpenVPN one-click  ✅ done
 Three TOTP dialects exist in the wild. All three supported, auto-detected from the .ovpn, overridable per profile:
 
 | Dialect | Trigger in .ovpn | What we send as the password |

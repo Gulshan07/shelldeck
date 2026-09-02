@@ -27,6 +27,10 @@
     </div>
     <input id="filter" placeholder="Search…">
     <div id="tree"></div>
+    <div id="vpn-box">
+      <div class="side-head"><strong>VPN</strong><button id="new-vpn-btn" title="Add VPN profile">+</button></div>
+      <div id="vpn-list"></div>
+    </div>
     <button id="lock-btn" class="lock">Lock vault</button>
   </aside>
   <main>
@@ -68,6 +72,44 @@
       <button value="save" id="save-btn">Save</button>
     </menu>
   </form>
+</dialog>
+
+<dialog id="vpn-editor">
+  <form method="dialog" id="vpn-form">
+    <h2>VPN profile</h2>
+    <input type="hidden" name="id">
+    <label>Name <input name="name" required placeholder="Vitraya"></label>
+    <label>.ovpn file <input type="file" id="ovpnfile" accept=".ovpn,.conf"></label>
+    <input type="hidden" name="ovpn">
+    <p class="note" id="ovpn-note">The whole profile, private key included, is stored encrypted in
+      the vault and written to disk only while connected.</p>
+    <label>Username <input name="username" autocomplete="off"></label>
+    <label>Password <input name="password" type="password" autocomplete="new-password"></label>
+    <label>TOTP secret (base32)
+      <input name="totp_secret" type="password" autocomplete="new-password" placeholder="JBSWY3DPEHPK3PXP">
+    </label>
+    <label>Second factor
+      <select name="dialect">
+        <option value="auto">Auto-detect from the .ovpn</option>
+        <option value="scrv1">static-challenge (SCRV1)</option>
+        <option value="concat">Appended to the password</option>
+      </select>
+    </label>
+    <label>sudo password (blank if sudo needs none)
+      <input name="sudo_password" type="password" autocomplete="new-password">
+    </label>
+    <p class="note">openvpn needs root to create the tunnel.</p>
+    <menu>
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="save">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="vpn-log">
+  <h2>VPN log</h2>
+  <pre id="vpn-log-text"></pre>
+  <menu><button id="vpn-log-close" autofocus>Close</button></menu>
 </dialog>
 
 <dialog id="hostkey">
@@ -130,6 +172,24 @@
 R 9090:localhost:22     server's 9090 &rarr; localhost:22 on your machine
 D 1080                  SOCKS5 proxy on local 1080</pre>
     <p class="note">Local and SOCKS listeners bind 127.0.0.1 only, never 0.0.0.0.</p>
+  </section>
+
+  <section>
+    <h3>VPN (one click, password + TOTP automatic)</h3>
+    <p>Add a profile with <b>+</b> next to VPN, pick your <code>.ovpn</code> file, and fill in the
+    username, password and the <b>TOTP secret</b> (the base32 string from when you set up your
+    authenticator &mdash; not the 6-digit code). Then <b>connect</b> is one click: the code is
+    generated and answered for you.</p>
+    <table>
+      <tr><td>Second factor</td><td>auto-detected &mdash; <code>static-challenge</code> in the
+        .ovpn means SCRV1, otherwise the code is appended to the password. Override it if needed.</td></tr>
+      <tr><td>Expired code</td><td>if the server re-challenges, a fresh code is sent automatically</td></tr>
+      <tr><td>&#9776; button</td><td>shows the openvpn log for this profile</td></tr>
+      <tr><td>root</td><td>openvpn needs it. Store your sudo password in the profile, or set up
+        sudoers. Nothing is cached anywhere else.</td></tr>
+    </table>
+    <p class="note">The .ovpn (private key included) lives encrypted in the vault. It is written to
+    <code>~/.eazyconnector/run/</code> at 0600 only while connected, and deleted on disconnect.</p>
   </section>
 
   <section>

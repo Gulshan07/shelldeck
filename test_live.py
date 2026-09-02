@@ -4,7 +4,7 @@ Run: .venv/bin/python test_live.py"""
 import asyncio, json, os, socket, tempfile, threading
 os.environ["EAZY_HOME"] = tempfile.mkdtemp()
 
-import asyncssh, uvicorn, websockets
+import asyncssh, httpx, uvicorn, websockets
 from eazyconnector import store, server
 
 SSHD_PORT, PW = 2298, "s3cret"
@@ -118,6 +118,39 @@ async def main():
         raise AssertionError("cross-origin WebSocket was accepted!")
     except (websockets.exceptions.ConnectionClosed, websockets.exceptions.InvalidStatus):
         print("ok  cross-origin WebSocket refused")
+
+    # --- VPN profile storage: nothing sensitive in plain config -------------
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as http:
+        r = await http.post("/api/vpns", json={
+            "name": "Vitraya", "username": "gulshan", "dialect": "auto",
+            "ovpn": 'client\nstatic-challenge "Enter Authenticator Code" 1\n'
+                    '<key>\nSUPER-SECRET-PRIVATE-KEY\n</key>\n',
+            "password": "corporate-secret", "totp_secret": "JBSWY3DPEHPK3PXP",
+            "sudo_password": "my-sudo-pw"})
+        assert r.status_code == 200, r.text
+        assert r.json()["detected"] == "scrv1", r.json()
+        blob = store.CONFIG.read_bytes()
+        for leak in (b"SUPER-SECRET-PRIVATE-KEY", b"corporate-secret",
+                     b"JBSWY3DPEHPK3PXP", b"my-sudo-pw"):
+            assert leak not in blob, f"{leak!r} leaked into plain config.json"
+        assert b"SUPER-SECRET-PRIVATE-KEY" not in store.VAULT.read_bytes(), "vault not encrypted"
+        print("ok  vpn key, password, TOTP seed and sudo password stay out of config.json")
+
+        vid = r.json()["id"]
+        await http.post("/api/vpns", json={"id": vid, "name": "Vitraya renamed"})
+        kept = server.vault.get("vpn:" + vid)
+        assert kept["totp_secret"] == "JBSWY3DPEHPK3PXP" and "SUPER-SECRET" in kept["ovpn"]
+        print("ok  editing a profile keeps its .ovpn and secrets")
+
+        assert (await http.get("/api/vpn/status")).json()["state"] == "disconnected"
+        assert (await http.post(f"/api/vpn/{vid}/up")).status_code in (200, 400)
+        assert (await http.post("/api/vpn/nonexistent/up")).status_code == 404
+        print("ok  vpn status and up/down endpoints respond")
+
+        await http.delete(f"/api/vpns/{vid}")
+        assert server.vault.get("vpn:" + vid) == {}
+        print("ok  deleting a vpn profile wipes its secrets")
 
     # --- SFTP: list, upload, download over the real socket ------------------
     import base64

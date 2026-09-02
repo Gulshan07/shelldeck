@@ -20,7 +20,7 @@ input:focus, textarea:focus, select:focus { outline:1px solid var(--accent); bor
 
 #app { display:grid; grid-template-columns:260px 1fr; height:100vh; }
 aside { background:var(--panel); border-right:1px solid var(--line); padding:10px;
-  display:grid; grid-template-rows:auto auto 1fr auto; gap:8px; min-height:0; }
+  display:grid; grid-template-rows:auto auto 1fr auto auto; gap:8px; min-height:0; }
 .side-head { display:flex; justify-content:space-between; align-items:center; }
 .side-head button { padding:2px 10px; }
 #tree { overflow:auto; min-height:0; }
@@ -97,3 +97,22 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 #help-btn { padding:2px 9px; }
 .sftp-bar .find { flex:1; min-width:120px; padding:4px 8px; font-size:12px; }
 .sftp-bar .cwd { flex:0 1 auto; max-width:40%; }
+
+#vpn-box { border-top:1px solid var(--line); padding-top:8px; }
+#vpn-box .side-head button { padding:0 8px; }
+.vpn { display:grid; grid-template-columns:1fr auto; align-items:center; gap:6px;
+  padding:6px 8px; border-radius:6px; }
+.vpn:hover { background:#252932; }
+.vpn-name { display:flex; align-items:center; gap:6px; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex:none; }
+.dot.connected { background:#5fd08a; }
+.dot.connecting { background:#e0b341; animation:pulse 1s ease-in-out infinite; }
+.dot.failed { background:#e5707a; }
+@keyframes pulse { 50% { opacity:.25; } }
+.vpn-detail { grid-column:1/-1; color:var(--muted); font-size:11px; }
+.vpn-detail.bad { color:#e5707a; }
+.vpn button { background:none; border:none; color:var(--muted); padding:2px 5px; font-size:12px; }
+.vpn button:hover { color:var(--accent); }
+#vpn-log { width:min(820px,94vw); }
+#vpn-log-text { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px;
+  font-size:11px; max-height:60vh; overflow:auto; white-space:pre-wrap; color:var(--muted); }

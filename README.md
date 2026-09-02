@@ -37,14 +37,24 @@ password; that password is the only thing that decrypts your secrets.
 - Unknown SSH host keys prompt with a fingerprint before trusting, at every hop
   of a jump-host chain. Verification is never disabled.
 
-## Status: P1
+## Status: P1 + P2
 
 Working: vault, connection tree, SSH terminals in tabs, split panes, jump
 hosts / chained connections, port forwarding (L/R/D), SFTP browse with
 upload and download, TOFU host-key pinning, idle auto-lock.
 
+One-click OpenVPN with automatic password + TOTP is in: add a profile, press
+connect. The second factor dialect is auto-detected from the `.ovpn`
+(`static-challenge` → SCRV1, otherwise appended), and a dynamic `CRV1`
+re-challenge is answered with a fresh code. The profile, private key included,
+is stored encrypted in the vault and written to `~/.eazyconnector/run/` at
+`0600` only while the tunnel is up, then deleted.
+
+openvpn needs root: store a sudo password in the profile, or set
+`EAZY_OPENVPN_NO_SUDO=1` if your openvpn already has the privileges it needs.
+
 Not yet: ssh_config / PuTTY import, session logging (rest of P1);
-one-click OpenVPN with TOTP (P2).
+clusters, macros, serial/telnet (P3).
 
 ### Using it
 
@@ -70,6 +80,7 @@ No way to change the master password yet — wipe `vault.enc` and start over.
 .venv/bin/python test_p0.py    # vault crypto, file modes, origin guard
 .venv/bin/python test_e2e.py   # full stack against an in-process sshd
 .venv/bin/python test_live.py  # real uvicorn + real WebSocket handshake
+.venv/bin/python test_vpn.py   # full OpenVPN management conversation (fake openvpn, no root)
 ```
 
 `test_e2e.py` uses Starlette's TestClient, which implements WebSockets

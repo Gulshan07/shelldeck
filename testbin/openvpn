@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Fake openvpn speaking the real management protocol, for tests.
+
+Scenario comes from FAKE_VPN_MODE: ok | challenge | badpass | noprompt-pw
+Expected credentials from FAKE_VPN_PASSWORD / FAKE_VPN_TOTP.
+"""
+import base64, hashlib, hmac, os, socket, struct, sys, time
+
+
+def _totp(seed, when=None, digits=6, period=30):
+    raw = seed.replace(" ", "").upper()
+    raw += "=" * (-len(raw) % 8)
+    key = base64.b32decode(raw)
+    c = int((time.time() if when is None else when) // period)
+    mac = hmac.new(key, struct.pack(">Q", c), hashlib.sha1).digest()
+    o = mac[-1] & 0x0F
+    return str((int.from_bytes(mac[o:o + 4], "big") & 0x7FFFFFFF) % 10 ** digits).zfill(digits)
+
+
+def valid_codes():
+    """Live codes, current and previous window - real servers allow the skew."""
+    seed = os.environ.get("FAKE_VPN_SEED")
+    if seed:
+        now = time.time()
+        return {_totp(seed, now), _totp(seed, now - 30)}
+    return {os.environ.get("FAKE_VPN_TOTP", "")}
+
+a = sys.argv
+mgmt_i = a.index("--management")
+host, port, pwfile = a[mgmt_i + 1], int(a[mgmt_i + 2]), a[mgmt_i + 3]
+mode = os.environ.get("FAKE_VPN_MODE", "ok")
+want_pw = os.environ.get("FAKE_VPN_PASSWORD", "")
+
+expect_mgmt = open(pwfile).read().strip()
+cfg = open(a[a.index("--config") + 1]).read()
+
+srv = socket.socket()
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind((host, port))
+srv.listen(1)
+print(f"fake openvpn listening on {host}:{port}", flush=True)
+conn, _ = srv.accept()
+f = conn.makefile("rw", newline="\n")
+
+def send(s, nl=True):
+    f.write(s + ("\r\n" if nl else ""))
+    f.flush()
+
+# Real openvpn sends this prompt WITHOUT a trailing newline.
+send(">INFO:OpenVPN Management Interface Version 3")
+send("ENTER PASSWORD:", nl=False)
+got = f.readline().strip()
+if got != expect_mgmt:
+    send("ERROR: bad management password")
+    sys.exit(2)
+send("SUCCESS: password is correct")
+
+hold_released = False
+sent_prompt = False
+challenged = False
+state_on = False
+
+while True:
+    if not hold_released:
+        send(">HOLD:Waiting for hold release")
+    line = f.readline()
+    if not line:
+        break
+    line = line.strip()
+    if line == "state on":
+        state_on = True
+        send("SUCCESS: real-time state notification set to ON")
+    elif line == "hold release":
+        hold_released = True
+        send("SUCCESS: hold release succeeded")
+        sc = any(l.strip().startswith("static-challenge") for l in cfg.splitlines())
+        send(">PASSWORD:Need 'Auth' username/password" + (" SC:1,Enter Authenticator Code" if sc else ""))
+        sent_prompt = True
+    elif line.startswith("username "):
+        pass
+    elif line.startswith("password "):
+        value = line.split('"')[3]
+        ok = False
+        if value.startswith("SCRV1:"):
+            _, pw_b64, otp_b64 = value.split(":")
+            ok = (base64.b64decode(pw_b64).decode() == want_pw
+                  and base64.b64decode(otp_b64).decode() in valid_codes())
+        elif value.startswith("CRV1::"):
+            ok = value.split("::")[2] in valid_codes()
+        else:
+            ok = any(value == want_pw + c for c in valid_codes())
+        if mode == "badpass":
+            send(">PASSWORD:Verification Failed: 'Auth'")
+            send(">STATE:1,EXITING,auth-failure,,")
+            break
+        if mode == "challenge" and not challenged:
+            challenged = True
+            send(">PASSWORD:Verification Failed: 'Auth' ['CRV1:R,E:sTaTe123:dXNlcg==:Enter code']")
+            continue
+        if ok:
+            send(">STATE:%d,CONNECTED,SUCCESS,10.8.0.7,203.0.113.9,1194,," % int(time.time()))
+            print("AUTH OK", flush=True)
+            while f.readline().strip() != "signal SIGTERM":
+                pass
+            send(">STATE:1,EXITING,exit-with-notification,,")
+            break
+        else:
+            send(">PASSWORD:Verification Failed: 'Auth'")
+            print("AUTH FAILED value=%r" % value, flush=True)
+            break
