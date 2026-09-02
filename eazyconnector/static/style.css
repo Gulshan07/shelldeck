@@ -36,8 +36,34 @@ aside { background:var(--panel); border-right:1px solid var(--line); padding:10p
 .lock { color:var(--muted); }
 
 main { display:grid; grid-template-rows:auto 1fr; min-width:0; }
-#tabbar { padding:8px 12px; border-bottom:1px solid var(--line); color:var(--muted); font-size:13px; }
-#term { min-height:0; overflow:hidden; padding:6px; }
+#tabbar { display:flex; gap:4px; align-items:center; padding:6px 8px; overflow-x:auto;
+  border-bottom:1px solid var(--line); font-size:13px; }
+.hint { color:var(--muted); padding:2px 4px; }
+.tab { display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:6px;
+  background:var(--panel); border:1px solid var(--line); cursor:pointer; white-space:nowrap; }
+.tab.active { border-color:var(--accent); color:#fff; }
+.tab-close, .pane-close { background:none; border:none; color:var(--muted); padding:0 2px; }
+
+#panes { display:grid; gap:1px; background:var(--line); min-height:0; }
+.pane { display:grid; grid-template-rows:auto 1fr; min-width:0; min-height:0; background:var(--bg); }
+.pane-head { display:flex; align-items:center; gap:8px; padding:5px 8px;
+  border-bottom:1px solid var(--line); font-size:12px; }
+.pane-title { font-weight:600; }
+.pane-status { color:var(--muted); margin-left:auto; }
+.pane-status.bad { color:#e5707a; }
+.pane-body { min-height:0; overflow:hidden; padding:4px; }
+
+.pane-body.sftp { display:grid; grid-template-rows:auto 1fr; padding:0; }
+.sftp-bar { display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--line); }
+.sftp-bar .cwd { color:var(--muted); font:12px ui-monospace, monospace; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.upload { cursor:pointer; border:1px solid var(--line); border-radius:6px; padding:4px 10px;
+  font-size:12px; color:var(--fg); }
+.sftp-list { overflow:auto; min-height:0; }
+.sftp-list .row { display:flex; justify-content:space-between; gap:12px; padding:5px 10px; cursor:pointer; }
+.sftp-list .row:hover { background:#252932; }
+.fname { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fsize { color:var(--muted); font-size:12px; white-space:nowrap; }
 
 dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line);
   border-radius:10px; padding:20px; width:min(460px, 92vw); }

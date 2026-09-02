@@ -37,13 +37,26 @@ password; that password is the only thing that decrypts your secrets.
 - Unknown SSH host keys prompt with a fingerprint before trusting, at every hop
   of a jump-host chain. Verification is never disabled.
 
-## Status: P0 + jump hosts
+## Status: P1
 
-Working: vault, connection tree, SSH terminal (password + private key), jump
-hosts / chained connections, TOFU host-key pinning, idle auto-lock.
+Working: vault, connection tree, SSH terminals in tabs, split panes, jump
+hosts / chained connections, port forwarding (L/R/D), SFTP browse with
+upload and download, TOFU host-key pinning, idle auto-lock.
 
-Not yet: tabs, splits, port forwarding, SFTP, ssh_config import (P1);
+Not yet: ssh_config / PuTTY import, session logging (rest of P1);
 one-click OpenVPN with TOTP (P2).
+
+### Using it
+
+- Click a connection to open it in a new tab; **Ctrl-click** to split it into
+  the current tab beside what is already there.
+- The folder icon on a row opens an SFTP pane (Ctrl-click to split it too).
+- Ctrl-Shift-PageUp / PageDown switch tabs.
+- Port forwarding rules go in the connection editor, one per line:
+  `L 8080:localhost:80`, `R 9090:localhost:22`, `D 1080`. They start with the
+  session and stop when its pane closes. Local and SOCKS listeners bind
+  `127.0.0.1` only — on a shared machine `0.0.0.0` would hand the tunnel to
+  every other user on the box.
 
 No way to change the master password yet — wipe `vault.enc` and start over.
 

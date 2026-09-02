@@ -72,6 +72,23 @@ def test_known_hosts_entries_actually_match():
     path.unlink()
 
 
+def test_parse_forward():
+    from eazyconnector.server import parse_forward
+
+    assert parse_forward("L 8080:localhost:3306") == ("L", 8080, "localhost", 3306)
+    assert parse_forward("R 9090:10.0.0.1:22") == ("R", 9090, "10.0.0.1", 22)
+    assert parse_forward("D 1080") == ("D", 1080, None, None)
+    # IPv6 literal destination: only the last colon separates the port
+    assert parse_forward("L 5000:::1:80") == ("L", 5000, "::1", 80)
+
+    for bad in ["X 1:h:2", "L 8080", "L 0:h:80", "L 70000:h:80", "L 8080:h:abc", "", "D"]:
+        try:
+            parse_forward(bad)
+            raise AssertionError(f"{bad!r} should have been rejected")
+        except ValueError:
+            pass
+
+
 def test_origin_guard():
     def scope(origin, host="127.0.0.1:9999"):
         h = [(b"host", host.encode())]

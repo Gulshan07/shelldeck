@@ -2,7 +2,9 @@
 import asyncio
 import contextlib
 import json
+import posixpath
 import secrets
+import stat
 import time
 import uuid
 from pathlib import Path
@@ -103,7 +105,13 @@ async def connections(request):
         "user": body["user"],
         "auth": body.get("auth", "password"),
         "jump": body.get("jump", ""),
+        "forwards": [l.strip() for l in (body.get("forwards") or "").splitlines() if l.strip()],
     }
+    for rule in conn["forwards"]:
+        try:
+            parse_forward(rule)
+        except ValueError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
     rest = [c for c in cfg["connections"] if c["id"] != conn["id"]]
     cfg["connections"] = sorted(rest + [conn], key=lambda c: (c["group"], c["name"]))
     store.save_config(cfg)
@@ -133,6 +141,48 @@ def known_hosts_entry(host, port, key) -> str:
     matches nothing, so the host stays untrusted and re-prompts forever."""
     target = host if port == 22 else f"[{host}]:{port}"
     return f"{target} {key.export_public_key().decode().strip()}\n"
+
+
+def parse_forward(rule: str):
+    """L 8080:localhost:3306 | R 9090:localhost:22 | D 1080 -> (kind, port, host, port)"""
+    parts = rule.split(None, 1)
+    kind = parts[0].upper() if parts else ""
+    if kind not in ("L", "R", "D") or len(parts) != 2:
+        raise ValueError(f"bad rule {rule!r}: expected 'L <port>:<host>:<port>', 'R ...' or 'D <port>'")
+
+    def port(v):
+        n = int(v)
+        if not 1 <= n <= 65535:
+            raise ValueError(f"bad port {v!r} in {rule!r}")
+        return n
+
+    if kind == "D":
+        return ("D", port(parts[1].strip()), None, None)
+    listen, _, dest = parts[1].partition(":")
+    dhost, _, dport = dest.rpartition(":")
+    if not dhost or not dport:
+        raise ValueError(f"bad rule {rule!r}: need '<port>:<host>:<port>'")
+    return (kind, port(listen), dhost, port(dport))
+
+
+async def _start_forwards(client, conn, stack):
+    """Listeners bind to 127.0.0.1: on a shared machine 0.0.0.0 would expose the
+    tunnel to every other user on this box."""
+    started = []
+    for rule in conn.get("forwards", []):
+        kind, lport, dhost, dport = parse_forward(rule)
+        if kind == "L":
+            listener = await client.forward_local_port("127.0.0.1", lport, dhost, dport)
+            desc = f"L 127.0.0.1:{lport} → {dhost}:{dport}"
+        elif kind == "D":
+            listener = await client.forward_socks("127.0.0.1", lport)
+            desc = f"D socks5 127.0.0.1:{lport}"
+        else:
+            listener = await client.forward_remote_port("", lport, dhost, dport)
+            desc = f"R remote:{lport} → {dhost}:{dport}"
+        stack.callback(listener.close)
+        started.append(desc)
+    return started
 
 
 async def _say(ws, payload) -> bool:
@@ -194,24 +244,10 @@ async def _connect(conn, cid, ws, tunnel=None):
 
 
 async def ssh_ws(ws):
-    if not _origin_ok(ws.scope):
-        await ws.close(code=1008)
+    conn, first = await _ws_session(ws)
+    if conn is None:
         return
-    await ws.accept()
-    # Token arrives as the first message: keeps it out of URLs and access logs.
-    first = await ws.receive_json()
-    if not secrets.compare_digest(first.get("token", ""), TOKEN):
-        await ws.close(code=1008)
-        return
-    _touch()
-
-    cid = first.get("id")
-    conn = _find(cid)
-    if conn is None or not vault.unlocked:
-        await _say(ws, {"type": "error", "message": "unknown connection or vault locked"})
-        with contextlib.suppress(Exception):
-            await ws.close()
-        return
+    cid = first["id"]
 
     async with contextlib.AsyncExitStack() as stack:
         try:
@@ -228,7 +264,12 @@ async def ssh_ws(ws):
             term_size=(first.get("cols", 80), first.get("rows", 24)),
             encoding=None,
         )
-        await ws.send_json({"type": "ready"})
+        try:
+            fwd = await _start_forwards(client, conn, stack)
+        except Exception as e:
+            fwd = []
+            await _say(ws, {"type": "warn", "message": f"port forwarding: {e}"})
+        await _say(ws, {"type": "ready", "forwards": fwd})
 
         async def pump_out():
             while not proc.stdout.at_eof():
@@ -240,21 +281,131 @@ async def ssh_ws(ws):
         out = asyncio.create_task(pump_out())
         try:
             while True:
-                msg = await ws.receive()
+                try:
+                    msg = await ws.receive()
+                except Exception:
+                    break
                 if msg["type"] == "websocket.disconnect":
                     break
-                if msg.get("bytes") is not None:
-                    proc.stdin.write(msg["bytes"])
-                elif msg.get("text"):
-                    ctl = json.loads(msg["text"])
-                    if ctl.get("type") == "resize":
-                        proc.change_terminal_size(ctl["cols"], ctl["rows"])
                 _touch()
-        except Exception:
-            pass
+                # One bad control message must not take the shell down with it.
+                try:
+                    if msg.get("bytes") is not None:
+                        proc.stdin.write(msg["bytes"])
+                    elif msg.get("text"):
+                        ctl = json.loads(msg["text"])
+                        if ctl.get("type") == "resize":
+                            cols, rows = int(ctl["cols"]), int(ctl["rows"])
+                            if cols > 0 and rows > 0:
+                                proc.change_terminal_size(cols, rows)
+                except Exception as e:
+                    print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
         finally:
             out.cancel()
             proc.close()
+
+
+# --- sftp ----------------------------------------------------------------
+
+CHUNK = 128 * 1024
+
+
+async def _ws_session(ws):
+    """Shared front half of both WebSocket endpoints: origin, token, connection."""
+    if not _origin_ok(ws.scope):
+        await ws.close(code=1008)
+        return None, None
+    await ws.accept()
+    first = await ws.receive_json()
+    if not secrets.compare_digest(first.get("token", ""), TOKEN):
+        await ws.close(code=1008)
+        return None, None
+    _touch()
+    conn = _find(first.get("id"))
+    if conn is None or not vault.unlocked:
+        await _say(ws, {"type": "error", "message": "unknown connection or vault locked"})
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return None, None
+    return conn, first
+
+
+async def _listdir(sftp, path):
+    real = await sftp.realpath(path)
+    entries = []
+    for e in await sftp.readdir(real):
+        if e.filename in (".", ".."):
+            continue
+        entries.append({
+            "name": e.filename,
+            "dir": stat.S_ISDIR(e.attrs.permissions or 0),
+            "size": e.attrs.size or 0,
+            "mtime": e.attrs.mtime or 0,
+        })
+    entries.sort(key=lambda x: (not x["dir"], x["name"].lower()))
+    return {"type": "list", "path": real, "entries": entries}
+
+
+async def sftp_ws(ws):
+    conn, first = await _ws_session(ws)
+    if conn is None:
+        return
+
+    async with contextlib.AsyncExitStack() as stack:
+        try:
+            client = await _open_chain(first["id"], ws, stack)
+            sftp = await client.start_sftp_client()
+            stack.callback(sftp.exit)
+            await _say(ws, await _listdir(sftp, first.get("path") or "."))
+        except Exception as e:
+            print(f"[eazyconnector] sftp {conn['name']}: {type(e).__name__}: {e}")
+            await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
+            with contextlib.suppress(Exception):
+                await ws.close()
+            return
+
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+            _touch()
+            if not msg.get("text"):
+                continue
+            req = json.loads(msg["text"])
+            op = req.get("op")
+            try:
+                if op == "ls":
+                    await _say(ws, await _listdir(sftp, req["path"]))
+
+                elif op == "get":
+                    path = req["path"]
+                    size = (await sftp.stat(path)).size or 0
+                    await _say(ws, {"type": "download", "name": posixpath.basename(path), "size": size})
+                    async with sftp.open(path, "rb") as f:
+                        while True:
+                            chunk = await f.read(CHUNK)
+                            if not chunk:
+                                break
+                            await ws.send_bytes(chunk)
+                    await _say(ws, {"type": "download_end"})
+
+                elif op == "put":
+                    # Binary frames follow until the announced size is reached.
+                    remaining = int(req["size"])
+                    async with sftp.open(req["path"], "wb") as f:
+                        while remaining > 0:
+                            frame = await ws.receive()
+                            if frame["type"] == "websocket.disconnect":
+                                raise ConnectionAbortedError("upload interrupted")
+                            data = frame.get("bytes") or b""
+                            await f.write(data)
+                            remaining -= len(data)
+                    await _say(ws, await _listdir(sftp, posixpath.dirname(req["path"]) or "."))
+
+                else:
+                    await _say(ws, {"type": "error", "message": f"unknown op {op!r}"})
+            except Exception as e:
+                await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
 
 
 # --- app -----------------------------------------------------------------
@@ -287,6 +438,7 @@ app = Starlette(
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
         WebSocketRoute("/ws/ssh", ssh_ws),
+        WebSocketRoute("/ws/sftp", sftp_ws),
         Mount("/static", StaticFiles(directory=STATIC)),
     ],
     lifespan=lifespan,
