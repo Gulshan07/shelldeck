@@ -178,6 +178,39 @@ async def main():
         await http.delete(f"/api/connections/{kid}")
         print("ok  editing a key connection without re-entering the PEM keeps the key")
 
+        # session logging: a logged terminal session is encrypted, listed, and read back
+        rl = await http.post("/api/connections", json={
+            "name": "logged", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,
+            "user": "gulshan", "auth": "password", "password": PW, "log": True})
+        lid = rl.json()["id"]
+    # open a ws session that produces output, then close it
+    async with websockets.connect(f"ws://127.0.0.1:{port}/ws/ssh",
+                                  additional_headers={"Origin": origin}) as ws:
+        await ws.send(json.dumps({"token": server.TOKEN, "id": lid, "cols": 80, "rows": 24}))
+        m = json.loads(await ws.recv())
+        if m["type"] == "hostkey":
+            await ws.send(json.dumps({"accept": True})); m = json.loads(await ws.recv())
+        assert m["type"] == "ready", m
+        await ws.send(b"echo LOGGED_MARKER\n")
+        buf = b""
+        while b"LOGGED_MARKER" not in buf:
+            c = await ws.recv()
+            if isinstance(c, bytes): buf += c
+    await asyncio.sleep(0.3)   # let close() flush the footer
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as http:
+        logs = (await http.get("/api/logs")).json()
+        assert logs and logs[0]["file"].startswith("logged-"), logs
+        # the .eclog on disk must not contain the marker in the clear
+        raw = (store.LOGS / logs[0]["file"]).read_bytes()
+        assert b"LOGGED_MARKER" not in raw, "session log is not encrypted on disk!"
+        text = (await http.get(f"/api/logs/{logs[0]['file']}")).text
+        assert "LOGGED_MARKER" in text, "decrypted log should contain the session output"
+        print("ok  session logged, encrypted on disk, decrypted via the API")
+        await http.delete(f"/api/logs/{logs[0]['file']}")
+        assert (await http.get("/api/logs")).json() == []
+        print("ok  log delete works")
+
     # --- VPN profile storage: nothing sensitive in plain config -------------
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as http:

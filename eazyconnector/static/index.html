@@ -24,6 +24,7 @@
       <strong>Connections</strong>
       <button id="help-btn" title="Help (F1)">?</button>
       <button id="import-btn" title="Import from ssh_config or Ásbrú">&#8681;</button>
+      <button id="logs-btn" title="Session logs">&#128220;</button>
       <button id="new-btn" title="New connection">+</button>
     </div>
     <input id="filter" placeholder="Search…">
@@ -70,6 +71,9 @@
     <label>Port forwarding (one rule per line)
       <textarea name="forwards" rows="3" placeholder="L 8080:localhost:80&#10;R 9090:localhost:22&#10;D 1080"></textarea>
     </label>
+    <label class="check"><input type="checkbox" name="log"> Record an encrypted session log
+      <span class="note">captures everything on screen, incl. anything typed; encrypted with your vault</span>
+    </label>
     <p class="note">Secrets are encrypted into the vault. Nothing is stored in plain config.</p>
     <menu>
       <button value="cancel" formnovalidate>Cancel</button>
@@ -92,6 +96,20 @@
       <button value="save" id="passwd-save">Change</button>
     </menu>
   </form>
+</dialog>
+
+<dialog id="logs-dlg">
+  <h2>Session logs</h2>
+  <p class="note">Encrypted with your vault. Opening one decrypts it in memory; it is never
+    written back to disk in the clear.</p>
+  <div id="logs-list"></div>
+  <menu><button id="logs-close" autofocus>Close</button></menu>
+</dialog>
+
+<dialog id="log-view">
+  <h2 id="log-view-name"></h2>
+  <pre id="log-view-text"></pre>
+  <menu><button id="log-view-close" autofocus>Close</button></menu>
 </dialog>
 
 <dialog id="import-dlg">
@@ -184,6 +202,7 @@
       <tr><td><b>Click</b> a connection</td><td>opens a terminal in a new tab</td></tr>
       <tr><td><kbd>Ctrl</kbd> + <b>click</b></td><td>splits it into the current tab, side by side</td></tr>
       <tr><td>&#128449; icon on a row</td><td>opens an SFTP file browser (<kbd>Ctrl</kbd>-click to split it)</td></tr>
+      <tr><td>&#128220; top of the sidebar</td><td>view/download/delete encrypted session logs</td></tr>
       <tr><td>&#9998; / &#10005; icons</td><td>edit or delete a connection</td></tr>
       <tr><td><b>drag</b> a connection onto a group</td><td>moves it into that group</td></tr>
       <tr><td><b>click</b> a group header</td><td>collapse or expand it (remembered per browser)</td></tr>
@@ -267,6 +286,9 @@ D 1080                  SOCKS5 proxy on local 1080</pre>
         <code>config.json</code> &mdash; never any secret.</li>
       <li>Secrets never reach the browser. The page asks to connect; the server authenticates.</li>
       <li>The vault auto-locks after 15 minutes idle. Open sessions keep running.</li>
+      <li>Session logs (opt-in per connection) are encrypted with your vault. They capture
+        everything on screen — passwords included — so they are off by default and readable only
+        after you unlock. Stored in <code>~/.eazyconnector/logs/*.eclog</code>.</li>
       <li>Change the master password any time with the button by Lock vault — the vault is
         re-encrypted and the old password stops working.</li>
       <li>Unknown SSH host keys ask before trusting. Verify the fingerprint out-of-band

@@ -69,6 +69,63 @@ def test_rekey_master_password():
     assert fresh.get("c1")["key_pem"] == "PEMDATA"
 
 
+def test_session_log_encrypted_roundtrip():
+    import tempfile
+    from eazyconnector import store as st, session_log as sl
+    st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
+    st.LOGS = st.HOME / "logs"
+    v = st.Vault(); v.create("logpw-eight")
+
+    log = sl.SessionLog(v, "prod/db-01")
+    secret_line = b"password: hunter2\r\nsudo token 123456\r\n"
+    log.write(secret_line)
+    log.write(b"more output\r\n")
+    log.close()
+
+    raw = st.LOGS.joinpath(*[]) and None  # noqa
+    disk = log.path.read_bytes()
+    assert b"hunter2" not in disk and b"123456" not in disk, "log plaintext must not touch disk"
+    assert log.path.suffix == ".eclog"
+
+    text = sl.read_log(v, log.path)
+    assert b"hunter2" in text and b"more output" in text, "decrypt must recover the session"
+    assert b"=== prod/db-01" in text, "header written"
+
+    # a locked vault cannot read the log back
+    v.lock()
+    try:
+        sl.read_log(v, log.path); raise AssertionError("locked vault decrypted a log")
+    except st.Locked:
+        pass
+
+
+def test_session_log_cap():
+    import tempfile
+    from eazyconnector import store as st, session_log as sl
+    st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
+    st.LOGS = st.HOME / "logs"
+    v = st.Vault(); v.create("logpw-eight")
+    sl.CAP_BYTES = 1000                     # tiny cap for the test
+    log = sl.SessionLog(v, "big")
+    for _ in range(50):
+        log.write(b"x" * 100)               # 5000 bytes into a 1000 cap
+    log.close()
+    text = sl.read_log(v, log.path)
+    assert b"truncated" in text, "must stop and mark truncation, not grow forever"
+    assert text.count(b"x") <= 1100, "should not keep writing past the cap"
+    sl.CAP_BYTES = 50 * 1024 * 1024
+
+
+def test_log_path_traversal_blocked():
+    import tempfile
+    from eazyconnector import store as st, server
+    st.LOGS = st.Path(tempfile.mkdtemp())
+    server.store.LOGS = st.LOGS
+    assert server._log_path("../../etc/passwd") is None
+    assert server._log_path("ok.txt") is None, "only .eclog allowed"
+    assert server._log_path("session.eclog") is not None
+
+
 def test_secrets_never_in_plain_config():
     store.save_config({"connections": [{"id": "c1", "host": "h", "user": "u"}]})
     assert b"hunter2" not in store.CONFIG.read_bytes()

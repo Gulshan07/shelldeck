@@ -68,7 +68,14 @@ The master password can be changed in place (button by Lock vault): the vault
 is re-encrypted under a new password with a fresh salt, open sessions keep
 running, and the old password stops working.
 
-Not yet: session logging (rest of P1); clusters, macros, serial/telnet (P3).
+Session logging is opt-in per connection (a checkbox in the editor) and
+**encrypted at rest** with your vault — a terminal log can contain a sudo
+password or token, so it is never written in the clear. The 📜 button lists,
+views (decrypted in memory) and deletes logs; they live in
+`~/.eazyconnector/logs/*.eclog`, capped at 50 MB per session.
+
+Not yet: keepalive/WOL, pre/post-connect commands, themes;
+clusters, macros, serial/telnet (P3).
 
 ### Using it
 

@@ -13,6 +13,7 @@ HOME = Path(os.environ.get("EAZY_HOME") or Path.home() / ".eazyconnector")
 CONFIG = HOME / "config.json"
 VAULT = HOME / "vault.enc"
 KNOWN_HOSTS = HOME / "known_hosts"
+LOGS = HOME / "logs"
 URL_FILE = HOME / "url"
 
 SCRYPT_N = 1 << 17  # ~130MB of scrypt memory-hardness
@@ -107,6 +108,16 @@ class Vault:
         self._salt = secrets.token_bytes(16)
         self._key = self._kdf(new_password, self._salt)
         self._flush()
+
+    def encrypt(self, data: bytes) -> bytes:
+        """AES-GCM under the master key: nonce || ciphertext. For session logs."""
+        self._require()
+        nonce = secrets.token_bytes(12)
+        return nonce + AESGCM(self._key).encrypt(nonce, data, None)
+
+    def decrypt(self, blob: bytes) -> bytes:
+        self._require()
+        return AESGCM(self._key).decrypt(blob[:12], blob[12:], None)
 
     def lock(self):
         # ponytail: CPython can't reliably zero bytes in memory; mlock/secure-alloc

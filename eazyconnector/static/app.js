@@ -188,7 +188,11 @@ function openEditor(conn) {
   f.jump.innerHTML = '<option value="">&mdash; direct &mdash;</option>' +
     conns.filter((c) => c.id !== (conn && conn.id))
          .map((c) => `<option value="${c.id}">${esc(c.name)} (${esc(c.host)})</option>`).join("");
-  if (conn) for (const [k, v] of Object.entries(conn)) if (f[k]) f[k].value = Array.isArray(v) ? v.join("\n") : v;
+  if (conn) for (const [k, v] of Object.entries(conn)) {
+    if (!f[k]) continue;
+    if (f[k].type === "checkbox") f[k].checked = !!v;
+    else f[k].value = Array.isArray(v) ? v.join("\n") : v;
+  }
   syncAuthFields();
   $("#editor").showModal();
 }
@@ -204,6 +208,41 @@ $("#new-btn").onclick = () => openEditor(null);
 // --- import -------------------------------------------------------------
 
 let importSource = null;
+
+$("#logs-btn").onclick = openLogs;
+$("#logs-close").onclick = () => $("#logs-dlg").close();
+$("#log-view-close").onclick = () => $("#log-view").close();
+
+async function openLogs() {
+  $("#logs-list").innerHTML = "Loading…";
+  $("#logs-dlg").showModal();
+  let logs;
+  try { logs = await api("/api/logs"); }
+  catch (e) { $("#logs-list").innerHTML = esc(e.message); return; }
+  if (!logs.length) { $("#logs-list").innerHTML = '<div class="hint" style="padding:10px">No session logs yet. Enable "Record an encrypted session log" on a connection.</div>'; return; }
+  $("#logs-list").innerHTML = logs.map((l) => `
+    <div class="lrow" data-file="${esc(l.file)}">
+      <span>${esc(l.file)}</span>
+      <span class="lmeta">${human(l.size)}</span>
+      <span class="lmeta">${new Date(l.mtime * 1000).toLocaleString()}</span>
+      <span><button class="lopen">open</button> <button class="ldel">delete</button></span>
+    </div>`).join("");
+  $("#logs-list").querySelectorAll(".lrow").forEach((row) => {
+    const file = row.dataset.file;
+    row.querySelector(".lopen").onclick = async () => {
+      const r = await fetch("/api/logs/" + encodeURIComponent(file),
+        { headers: { "Authorization": "Bearer " + TOKEN } });
+      $("#log-view-name").textContent = file;
+      $("#log-view-text").textContent = r.ok ? await r.text() : "could not open: " + r.status;
+      $("#log-view").showModal();
+    };
+    row.querySelector(".ldel").onclick = async () => {
+      if (!confirm("Delete this log?")) return;
+      await api("/api/logs/" + encodeURIComponent(file), { method: "DELETE" });
+      openLogs();
+    };
+  });
+}
 
 $("#import-btn").onclick = () => {
   importSource = null;
@@ -280,6 +319,7 @@ $("#editor").onclose = async () => {
   if ($("#editor").returnValue !== "save") return;
   const body = Object.fromEntries(new FormData($("#conn-form")));
   delete body.keyfile;
+  body.log = $("#conn-form").log.checked;
   try {
     await api("/api/connections", { method: "POST", body: JSON.stringify(body) });
     loadTree();

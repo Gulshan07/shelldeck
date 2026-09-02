@@ -19,7 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import store
 from .vpn import Vpn, VpnError, detect_dialect
-from . import importers, platform
+from . import importers, platform, session_log
 
 STATIC = Path(__file__).parent / "static"
 IDLE_LOCK_SECONDS = 15 * 60
@@ -127,6 +127,7 @@ async def connections(request):
         "jump": body.get("jump", ""),
         "forwards": [l.strip() for l in (body.get("forwards") or "").splitlines() if l.strip()],
         "key_path": body.get("key_path", ""),
+        "log": bool(body.get("log")),
     }
     for rule in conn["forwards"]:
         try:
@@ -288,6 +289,46 @@ async def import_commit(request):
     store.save_config(cfg)
     return JSONResponse({"created": created, "skipped": skipped, "keys_imported": key_read,
                          "key_failures": key_failed, "warnings": warnings})
+
+
+# --- session logs --------------------------------------------------------
+
+
+@api
+async def logs_list(request):
+    return JSONResponse(session_log.list_logs())
+
+
+def _log_path(name):
+    # Resolve inside LOGS only; reject any traversal.
+    p = (store.LOGS / name).resolve()
+    if p.parent != store.LOGS.resolve() or p.suffix != ".eclog":
+        return None
+    return p
+
+
+@api
+async def log_get(request):
+    if not vault.unlocked:
+        return JSONResponse({"error": "locked"}, status_code=423)
+    p = _log_path(request.path_params["name"])
+    if p is None or not p.exists():
+        return JSONResponse({"error": "no such log"}, status_code=404)
+    try:
+        text = session_log.read_log(vault, p)
+    except Exception as e:
+        return JSONResponse({"error": f"could not decrypt: {e}"}, status_code=400)
+    from starlette.responses import PlainTextResponse
+    return PlainTextResponse(text.decode("utf-8", "replace"))
+
+
+@api
+async def log_delete(request):
+    p = _log_path(request.path_params["name"])
+    if p is None:
+        return JSONResponse({"error": "bad name"}, status_code=400)
+    p.unlink(missing_ok=True)
+    return JSONResponse({"deleted": request.path_params["name"]})
 
 
 # --- vpn -----------------------------------------------------------------
@@ -550,14 +591,18 @@ async def ssh_ws(ws):
             await _say(ws, {"type": "warn", "message": f"port forwarding: {e}"})
         await _say(ws, {"type": "ready", "forwards": fwd})
 
-        async def pump_out():
+        logger = session_log.SessionLog(vault, conn["name"]) if conn.get("log") else None
+
+        async def pump_out_logged():
             while not proc.stdout.at_eof():
                 data = await proc.stdout.read(65536)
                 if not data:
                     break
+                if logger:
+                    logger.write(data)
                 await ws.send_bytes(data)
 
-        out = asyncio.create_task(pump_out())
+        out = asyncio.create_task(pump_out_logged())
         try:
             while True:
                 try:
@@ -581,6 +626,8 @@ async def ssh_ws(ws):
                     print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
         finally:
             out.cancel()
+            if logger:
+                logger.close()
             proc.close()
 
 
@@ -771,6 +818,9 @@ app = Starlette(
         Route("/api/vault/change", vault_change, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
+        Route("/api/logs", logs_list),
+        Route("/api/logs/{name}", log_get, methods=["GET"]),
+        Route("/api/logs/{name}", log_delete, methods=["DELETE"]),
         Route("/api/import/{source}/preview", import_preview, methods=["GET", "POST"]),
         Route("/api/import/{source}/commit", import_commit, methods=["POST"]),
         Route("/api/vpns", vpns, methods=["GET", "POST"]),
