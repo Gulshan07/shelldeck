@@ -3,7 +3,8 @@ name = "eazyconnector"
 version = "0.1.0"
 description = "Cross-platform connection manager with an encrypted local vault"
 requires-python = ">=3.10"
-dependencies = ["asyncssh>=2.14", "starlette>=0.37", "uvicorn>=0.30"]
+# websockets is not optional: plain uvicorn refuses WebSocket upgrades without it.
+dependencies = ["asyncssh>=2.14", "starlette>=0.37", "uvicorn>=0.30", "websockets>=12"]
 
 [project.scripts]
 eazyconnector = "eazyconnector.__main__:main"

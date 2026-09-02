@@ -136,6 +136,7 @@ function connect(id) {
 
   ws = new WebSocket(`ws://${location.host}/ws/ssh`);
   ws.binaryType = "arraybuffer";
+  let sawServer = false;
 
   ws.onopen = () => {
     fit.fit();
@@ -143,6 +144,7 @@ function connect(id) {
   };
 
   ws.onmessage = (ev) => {
+    sawServer = true;
     if (ev.data instanceof ArrayBuffer) { term.write(new Uint8Array(ev.data)); return; }
     const msg = JSON.parse(ev.data);
     if (msg.type === "ready") { $("#status").textContent = `${conn.user}@${conn.host}`; term.focus(); }
@@ -150,7 +152,13 @@ function connect(id) {
     else if (msg.type === "hostkey") askHostKey(conn, msg);
   };
 
-  ws.onclose = () => { $("#status").textContent = "Not connected"; term.writeln("\r\n\x1b[90m— disconnected —\x1b[0m"); };
+  ws.onclose = (ev) => {
+    $("#status").textContent = "Not connected";
+    // A close with nothing received means the socket never reached the app.
+    term.writeln(sawServer
+      ? "\r\n\x1b[90m— disconnected —\x1b[0m"
+      : `\r\n\x1b[31mWebSocket closed before the session started (code ${ev.code}${ev.reason ? ": " + ev.reason : ""}).\x1b[0m`);
+  };
 }
 
 function askHostKey(conn, msg) {
