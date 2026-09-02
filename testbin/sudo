@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Fake sudo for tests: `sudo -S -p '' cat <path>`. Reads password from stdin,
+checks FAKE_SUDO_PASSWORD, then cats the file (bypassing perms via os.setuid? no —
+just reads it as the test user, since the test file is readable by us). We only
+need to exercise the password gate and the cat."""
+import os, sys
+args = sys.argv[1:]
+# strip flags to find 'cat' and the path
+while args and args[0].startswith("-"):
+    if args[0] == "-p":
+        args = args[2:]
+    else:
+        args = args[1:]
+pw = sys.stdin.readline().rstrip("\n")
+if pw != os.environ.get("FAKE_SUDO_PASSWORD", ""):
+    sys.stderr.write("Sorry, try again.\n"); sys.exit(1)
+if args and args[0] == "cat":
+    # Real sudo reads as root, ignoring the file mode. Simulate that: the test
+    # owns the file, so briefly restore read, cat, then re-lock.
+    path = args[1]
+    import os as _os
+    mode = _os.stat(path).st_mode & 0o777
+    _os.chmod(path, 0o600)
+    try:
+        sys.stdout.write(open(path).read())
+    finally:
+        _os.chmod(path, mode)
+    sys.exit(0)
+sys.exit(2)

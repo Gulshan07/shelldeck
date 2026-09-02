@@ -151,6 +151,20 @@
   <menu><button id="vpn-log-close" autofocus>Close</button></menu>
 </dialog>
 
+<dialog id="sudo-dlg">
+  <form method="dialog" id="sudo-form">
+    <h2>Key needs sudo to read</h2>
+    <p class="note">This connection's key file <code id="sudo-path"></code> is owned by root and
+      can't be read directly. Enter your sudo password to read it once; it's cached in the vault
+      afterwards, so you won't be asked again. The password is used immediately and never stored.</p>
+    <label>sudo password <input name="sudo" type="password" autocomplete="off" autofocus></label>
+    <menu>
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="ok">Read key &amp; connect</button>
+    </menu>
+  </form>
+</dialog>
+
 <dialog id="hostkey">
   <h2>Unknown host key</h2>
   <p>First connection to <b id="hk-host"></b>. Verify this fingerprint out-of-band before trusting it.</p>
@@ -207,7 +221,11 @@
   </section>
 
   <section>
-    <h3>Jump hosts</h3>
+    <p class="note">If a connection's key file is owned by root and can't be read, connecting will
+    ask for your sudo password once, read the key with it, and cache it in the vault — no chown
+    needed. The sudo password is used immediately and never stored.</p>
+
+    <h3 style="margin-top:16px">Jump hosts</h3>
     <p>Add the bastion as its own connection, then set it as the <b>Jump host</b> of the
     target. Chains work: the jump host may have a jump host of its own. Host keys are
     verified at every hop.</p>

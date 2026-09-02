@@ -126,6 +126,7 @@ async def connections(request):
         "auth": body.get("auth", "password"),
         "jump": body.get("jump", ""),
         "forwards": [l.strip() for l in (body.get("forwards") or "").splitlines() if l.strip()],
+        "key_path": body.get("key_path", ""),
     }
     for rule in conn["forwards"]:
         try:
@@ -266,6 +267,8 @@ async def import_commit(request):
                 c["jump"] = id_remap.get(_dupe_key(tgt), c["jump"])
         kf = c.pop("_keyfile", None)
         c.pop("_dupe", None)
+        if kf:
+            c["key_path"] = kf            # remembered so an unreadable key can be read later
         secrets_ = {}
         if c["auth"] == "key" and kf:
             try:
@@ -434,8 +437,53 @@ async def _open_chain(cid, ws, stack, chain=()):
     return await stack.enter_async_context(client)
 
 
+async def _read_key_with_sudo(path, ws) -> bool:
+    """Ask the browser for a sudo password and read a root-owned key with it,
+    once. The password is used immediately and never stored."""
+    await _say(ws, {"type": "need_key_sudo", "path": path})
+    reply = await ws.receive_json()
+    pw = reply.get("sudo_password")
+    if not pw:
+        return False
+    proc = await asyncio.create_subprocess_exec(
+        "sudo", "-S", "-p", "", "cat", path,          # exec, not shell: path is not interpolated
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+    out, err = await proc.communicate((pw + "\n").encode())
+    del pw
+    if proc.returncode != 0:
+        raise ValueError("sudo could not read the key: "
+                         + (err.decode(errors="replace").strip() or "wrong password?"))
+    try:
+        asyncssh.import_private_key(out.decode("utf-8", "strict"))
+    except Exception as e:
+        raise ValueError(f"that file is not a usable private key ({e})")
+    # ponytail: caches a root-owned key into the user's vault so sudo is asked once.
+    # The user consented by entering sudo; chown would be the alternative.
+    return out.decode("utf-8")
+
+
+async def _ensure_key(conn, cid, ws):
+    """Make sure a key connection has its PEM in the vault, recovering an
+    unreadable key file via sudo if the user allows it."""
+    secrets_ = vault.get(cid)
+    if conn["auth"] != "key" or secrets_.get("key_pem"):
+        return
+    path = conn.get("key_path")
+    if not path or not os.path.exists(path):
+        return                                        # _connect raises the clear error
+    try:
+        pem = open(path, encoding="utf-8", errors="strict").read()   # readable now?
+    except PermissionError:
+        pem = await _read_key_with_sudo(path, ws)     # root-owned: ask for sudo
+    secrets_ = dict(secrets_)
+    secrets_["key_pem"] = pem
+    vault.put(cid, secrets_)
+
+
 async def _connect(conn, cid, ws, tunnel=None):
     """Connect with TOFU host-key verification. Never disables verification."""
+    await _ensure_key(conn, cid, ws)
     secrets_ = vault.get(cid)
     kwargs = dict(
         host=conn["host"], port=conn["port"], username=conn["user"],

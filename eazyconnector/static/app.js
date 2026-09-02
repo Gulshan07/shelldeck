@@ -490,6 +490,7 @@ function termPane(conn) {
     } else if (msg.type === "warn") term.writeln(`\r\n\x1b[33m${msg.message}\x1b[0m`);
     else if (msg.type === "error") { pane.setStatus("failed", true); term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`); }
     else if (msg.type === "hostkey") askHostKey(ws, msg);
+    else if (msg.type === "need_key_sudo") askSudoKey(ws, msg, pane);
   };
   ws.onclose = (ev) => {
     pane.setStatus("disconnected", true);
@@ -543,6 +544,7 @@ function sftpPane(conn) {
     else if (msg.type === "download") { dl = { name: msg.name, parts: [] }; pane.setStatus("downloading " + msg.name); }
     else if (msg.type === "download_end") { save(dl); dl = null; pane.setStatus(conn.host); }
     else if (msg.type === "hostkey") askHostKey(ws, msg);
+    else if (msg.type === "need_key_sudo") askSudoKey(ws, msg, pane);
     else if (msg.type === "error") pane.setStatus(msg.message, true);
   };
   ws.onclose = () => pane.setStatus("disconnected", true);
@@ -616,6 +618,19 @@ function sftpPane(conn) {
 const human = (n) => n < 1024 ? n + " B"
   : n < 1048576 ? (n / 1024).toFixed(1) + " KB"
   : n < 1073741824 ? (n / 1048576).toFixed(1) + " MB" : (n / 1073741824).toFixed(1) + " GB";
+
+function askSudoKey(ws, msg, pane) {
+  $("#sudo-path").textContent = msg.path;
+  $("#sudo-form").sudo.value = "";
+  const dlg = $("#sudo-dlg");
+  dlg.showModal();
+  dlg.onclose = () => {
+    const pw = dlg.returnValue === "ok" ? $("#sudo-form").sudo.value : "";
+    $("#sudo-form").sudo.value = "";
+    if (pane) pane.setStatus(pw ? "reading key…" : "cancelled", !pw);
+    ws.send(JSON.stringify({ sudo_password: pw }));
+  };
+}
 
 function askHostKey(ws, msg) {
   $("#hk-host").textContent = `${msg.name} - ${msg.host}`;

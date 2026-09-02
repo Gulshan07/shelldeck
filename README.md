@@ -59,6 +59,11 @@ noted) before you commit. Structure, hosts and key-file paths only; saved
 passwords are never read. Duplicates (same host, user, port) are skipped, so
 re-importing is safe.
 
+A key file owned by root (unreadable by the app) is handled at connect time:
+EazyConnector asks for your sudo password once, reads the key with `sudo cat`,
+caches it in the vault, and never asks again. The sudo password is used
+immediately and never stored — the alternative is `sudo chown` on the file.
+
 The master password can be changed in place (button by Lock vault): the vault
 is re-encrypted under a new password with a fresh salt, open sessions keep
 running, and the old password stops working.
