@@ -81,7 +81,35 @@ async def main():
     assert not (RUN_DIR / "p1.ovpn").exists(), "failed run must not leave the key on disk"
     print("ok  failed run also wipes the key from disk")
 
-    # 5. guard rails
+    # 5. a tunnel that comes up without any >STATE: notification is still detected,
+    #    because openvpn's own log is authoritative
+    v = await run("nostate", OVPN_SC)
+    assert v.state == "connected", (v.state, v.detail, v.log[-6:])
+    assert any("Initialization Sequence Completed" in l for l in v.log)
+    print("ok  detected a live tunnel from the openvpn log with no >STATE: at all")
+    await v.down()
+
+    # 6. a stale 'failed' state with openvpn still alive must not start a second tunnel
+    os.environ["FAKE_VPN_MODE"] = "ok"
+    v = Vpn()
+    prof = {"id": "p1", "name": "Vitraya", "username": "u", "dialect": "auto"}
+    sec = {"ovpn": OVPN_SC, "password": PW, "totp_secret": SEED}
+    await v.up(prof, sec)
+    end = time.time() + 25
+    while time.time() < end and v.state == "connecting":
+        await asyncio.sleep(0.2)
+    assert v.state == "connected"
+    first_pid = v._proc.pid
+    v.state = "failed"                    # what the missed-status bug looked like
+    await v.up(prof, sec)                 # must tear the old one down, not stack another
+    assert v._proc.pid != first_pid
+    import subprocess as sp
+    assert sp.run(["kill", "-0", str(first_pid)], capture_output=True).returncode != 0, \
+        "the first openvpn was left running alongside the second"
+    print("ok  a stale failed state tears the old tunnel down instead of duplicating it")
+    await v.down()
+
+    # 7. guard rails
     v = Vpn()
     try:
         await v.up({"id": "x", "name": "x", "dialect": "auto"}, {})

@@ -100,6 +100,10 @@ class Vpn:
     async def up(self, profile: dict, secret: dict):
         if self.state in ("connecting", "connected"):
             raise VpnError(f"{self.name} is already {self.state}")
+        if self._proc is not None and self._proc.returncode is None:
+            # State can read failed while openvpn is alive (e.g. status was missed).
+            # Starting another would leave two tunnels fighting over the routes.
+            await self.down()
         if not shutil.which("openvpn"):
             raise VpnError("openvpn is not installed or not on PATH")
         ovpn = secret.get("ovpn")
@@ -123,7 +127,8 @@ class Vpn:
 
         port = _free_port()
         argv = ["openvpn", "--config", str(cfg), "--management", "127.0.0.1", str(port), str(pwf),
-                "--management-query-passwords", "--management-hold", "--verb", "3"]
+                "--management-query-passwords", "--management-hold",
+                "--auth-nocache", "--verb", "3"]
         sudo_pw = secret.get("sudo_password")
         if os.geteuid() != 0 and not os.environ.get("EAZY_OPENVPN_NO_SUDO"):
             argv = (["sudo", "-S", "-p", ""] if sudo_pw else ["sudo", "-n"]) + argv
@@ -171,6 +176,16 @@ class Vpn:
             text = line.decode(errors="replace").rstrip()
             if text:
                 self._say(text)
+                if "net_addr_v4_add:" in text and " dev tun" in text:
+                    self.ip = text.split("net_addr_v4_add:")[1].split()[0].split("/")[0]
+                elif "ifconfig " in text and "PUSH_REPLY" in text:
+                    with contextlib.suppress(Exception):
+                        self.ip = text.split("ifconfig ")[1].split(",")[0].split()[0]
+                if "Initialization Sequence Completed" in text:
+                    # Truth from openvpn itself, independent of the management protocol.
+                    if self.state != "connected":
+                        self.state, self.detail = "connected", "connected"
+                        self.since = time.time()
                 if "sudo:" in text or "a password is required" in text:
                     self.state = "failed"
                     self.detail = ("openvpn needs root. Store a sudo password in the profile, "
@@ -209,6 +224,11 @@ class Vpn:
         # openvpn prints "ENTER PASSWORD:" with NO trailing newline, so waiting for a
         # line here deadlocks. It reads one line first regardless, so just send it.
         await send(mgmt_pw)
+        # Do not wait for "SUCCESS: password is correct" to ask for state: that reply
+        # can share a line with the prompt and be missed, and without "state on"
+        # openvpn never reports CONNECTED. Ordering on the socket makes this safe.
+        await send("state on")
+        await send("hold release")
 
         async def lines():
             """Yield management lines, tolerating prompts that lack a newline."""
@@ -220,7 +240,14 @@ class Vpn:
                 buf += chunk.decode(errors="replace")
                 while "\n" in buf:
                     line, _, buf = buf.partition("\n")
-                    yield line.rstrip("\r")
+                    line = line.rstrip("\r")
+                    # "ENTER PASSWORD:" has no newline, so whatever openvpn says
+                    # next shares its line. Drop the prompt, keep the remainder.
+                    if line.startswith("ENTER PASSWORD:"):
+                        line = line[len("ENTER PASSWORD:"):].lstrip()
+                        if not line:
+                            continue
+                    yield line
                 if buf.endswith(":") and "PASSWORD" in buf:   # bare prompt, no newline
                     yield buf.rstrip("\r")
                     buf = ""
@@ -237,10 +264,14 @@ class Vpn:
         deadline = time.time() + CONNECT_TIMEOUT
         try:
             stream = lines()
-            while time.time() < deadline:
+            while True:
+                # The deadline only bounds getting connected; a live tunnel is watched
+                # indefinitely so a re-auth prompt gets answered with a fresh code.
+                budget = None if self.state == "connected" else max(1, deadline - time.time())
+                if budget is not None and time.time() >= deadline:
+                    break
                 try:
-                    line = await asyncio.wait_for(stream.__anext__(),
-                                                  timeout=max(1, deadline - time.time()))
+                    line = await asyncio.wait_for(stream.__anext__(), timeout=budget)
                 except StopAsyncIteration:
                     break
                 if not line:
@@ -248,11 +279,7 @@ class Vpn:
                 if not line.startswith(">"):
                     self._say("mgmt: " + line)
 
-                if line.startswith("ENTER PASSWORD:"):
-                    pass                      # already sent on connect
-                elif line.startswith("SUCCESS: password is correct"):
-                    await send("state on")
-                    await send("hold release")
+                if line.startswith("SUCCESS: password is correct"):
                     self.detail = "negotiating"
                 elif line.startswith(">HOLD:"):
                     await send("hold release")

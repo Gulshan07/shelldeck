@@ -46,13 +46,18 @@ def send(s, nl=True):
     f.write(s + ("\r\n" if nl else ""))
     f.flush()
 
-# Real openvpn sends this prompt WITHOUT a trailing newline.
-send(">INFO:OpenVPN Management Interface Version 3")
-send("ENTER PASSWORD:", nl=False)
+# Real openvpn writes "ENTER PASSWORD:" with NO trailing newline, and the client
+# sends its password without waiting for the prompt. So a reader's first read()
+# gets the banner, the prompt and the SUCCESS all at once, with the prompt and
+# SUCCESS sharing one line. Reproduce that exact byte pattern.
 got = f.readline().strip()
 if got != expect_mgmt:
+    send(">INFO:OpenVPN Management Interface Version 3")
+    send("ENTER PASSWORD:", nl=False)
     send("ERROR: bad management password")
     sys.exit(2)
+send(">INFO:OpenVPN Management Interface Version 3")
+send("ENTER PASSWORD:", nl=False)
 send("SUCCESS: password is correct")
 
 hold_released = False
@@ -68,7 +73,7 @@ while True:
         break
     line = line.strip()
     if line == "state on":
-        state_on = True
+        state_on = mode != "nostate"      # simulate never getting >STATE: at all
         send("SUCCESS: real-time state notification set to ON")
     elif line == "hold release":
         hold_released = True
@@ -91,18 +96,25 @@ while True:
             ok = any(value == want_pw + c for c in valid_codes())
         if mode == "badpass":
             send(">PASSWORD:Verification Failed: 'Auth'")
-            send(">STATE:1,EXITING,auth-failure,,")
+            if state_on:
+                send(">STATE:1,EXITING,auth-failure,,")
             break
         if mode == "challenge" and not challenged:
             challenged = True
             send(">PASSWORD:Verification Failed: 'Auth' ['CRV1:R,E:sTaTe123:dXNlcg==:Enter code']")
             continue
         if ok:
-            send(">STATE:%d,CONNECTED,SUCCESS,10.8.0.7,203.0.113.9,1194,," % int(time.time()))
             print("AUTH OK", flush=True)
+            # Real openvpn only reports state when asked to. A client that never
+            # sent "state on" learns nothing here -- it must fall back to the log.
+            if state_on:
+                send(">STATE:%d,CONNECTED,SUCCESS,10.8.0.7,203.0.113.9,1194,," % int(time.time()))
+            else:
+                print("Initialization Sequence Completed", flush=True)
             while f.readline().strip() != "signal SIGTERM":
                 pass
-            send(">STATE:1,EXITING,exit-with-notification,,")
+            if state_on:
+                send(">STATE:1,EXITING,exit-with-notification,,")
             break
         else:
             send(">PASSWORD:Verification Failed: 'Auth'")
