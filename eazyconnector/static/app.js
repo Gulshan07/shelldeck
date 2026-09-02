@@ -88,9 +88,17 @@ $("#filter").oninput = renderTree;
 
 // --- editor -------------------------------------------------------------
 
+function resetForm(f) {
+  f.reset();
+  // input[type=hidden] keeps its value in the content attribute, so assigning
+  // .value makes it the default and reset() restores it instead of clearing.
+  // Without this, editing once then adding a new entry overwrites the edited one.
+  f.querySelectorAll("input[type=hidden]").forEach((h) => h.value = "");
+}
+
 function openEditor(conn) {
   const f = $("#conn-form");
-  f.reset();
+  resetForm(f);
   f.jump.innerHTML = '<option value="">&mdash; direct &mdash;</option>' +
     conns.filter((c) => c.id !== (conn && conn.id))
          .map((c) => `<option value="${c.id}">${esc(c.name)} (${esc(c.host)})</option>`).join("");
@@ -188,8 +196,7 @@ const fmtUptime = (s) => s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` 
 
 function openVpnEditor(v) {
   const f = $("#vpn-form");
-  f.reset();
-  f.ovpn.value = "";
+  resetForm(f);
   $("#ovpn-note").textContent = v
     ? "Leave the file empty to keep the profile already stored. Blank secrets are kept too."
     : "The whole profile, private key included, is stored encrypted in the vault and written to disk only while connected.";

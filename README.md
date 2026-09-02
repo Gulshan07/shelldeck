@@ -81,6 +81,7 @@ No way to change the master password yet — wipe `vault.enc` and start over.
 .venv/bin/python test_e2e.py   # full stack against an in-process sshd
 .venv/bin/python test_live.py  # real uvicorn + real WebSocket handshake
 .venv/bin/python test_vpn.py   # full OpenVPN management conversation (fake openvpn, no root)
+.venv/bin/python test_ui.py    # browser-level checks over Chrome DevTools Protocol (skips without Chrome)
 ```
 
 `test_e2e.py` uses Starlette's TestClient, which implements WebSockets
