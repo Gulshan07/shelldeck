@@ -52,6 +52,10 @@ one-click OpenVPN with TOTP (P2).
   the current tab beside what is already there.
 - The folder icon on a row opens an SFTP pane (Ctrl-click to split it too).
 - Ctrl-Shift-PageUp / PageDown switch tabs.
+- **F1** (or the `?` button) opens the built-in manual: shortcuts, forwarding
+  syntax, jump hosts, and what the security guarantees actually are.
+- In an SFTP pane, type in the filter box to narrow the current folder; press
+  **Enter** to search the server recursively below it. Sizes are shown for both.
 - Port forwarding rules go in the connection editor, one per line:
   `L 8080:localhost:80`, `R 9090:localhost:22`, `D 1080`. They start with the
   session and stop when its pane closes. Local and SOCKS listeners bind

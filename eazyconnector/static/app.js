@@ -252,12 +252,16 @@ function sftpPane(conn) {
   const pane = makePane(conn, conn.name + " · files");
   pane.body.className = "pane-body sftp";
   pane.body.innerHTML = `<div class="sftp-bar"><button class="up">&#8593; up</button>
-      <span class="cwd"></span><label class="upload">upload<input type="file" hidden multiple></label></div>
+      <span class="cwd"></span>
+      <input class="find" placeholder="filter here &middot; Enter searches the server">
+      <label class="upload">upload<input type="file" hidden multiple></label></div>
     <div class="sftp-list"></div>`;
   const list = pane.body.querySelector(".sftp-list");
   const cwdEl = pane.body.querySelector(".cwd");
+  const findEl = pane.body.querySelector(".find");
   let cwd = ".";
   let dl = null;
+  let entries = [];
 
   const ws = new WebSocket(`ws://${location.host}/ws/sftp`);
   ws.binaryType = "arraybuffer";
@@ -268,7 +272,15 @@ function sftpPane(conn) {
   ws.onmessage = (ev) => {
     if (ev.data instanceof ArrayBuffer) { if (dl) dl.parts.push(ev.data); return; }
     const msg = JSON.parse(ev.data);
-    if (msg.type === "list") { cwd = msg.path; cwdEl.textContent = msg.path; pane.setStatus(conn.host); draw(msg.entries); }
+    if (msg.type === "list") {
+      cwd = msg.path; cwdEl.textContent = msg.path; pane.setStatus(conn.host);
+      entries = msg.entries; findEl.value = ""; draw(entries);
+    }
+    else if (msg.type === "found") {
+      pane.setStatus(`${msg.entries.length} match${msg.entries.length === 1 ? "" : "es"} for "${msg.q}"`);
+      draw(msg.entries, true);
+    }
+    else if (msg.type === "uploaded") pane.setStatus("uploaded " + msg.name);
     else if (msg.type === "download") { dl = { name: msg.name, parts: [] }; pane.setStatus("downloading " + msg.name); }
     else if (msg.type === "download_end") { save(dl); dl = null; pane.setStatus(conn.host); }
     else if (msg.type === "hostkey") askHostKey(ws, msg);
@@ -279,17 +291,29 @@ function sftpPane(conn) {
   const send = (o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
   const go = (path) => send({ op: "ls", path });
 
-  function draw(entries) {
-    list.innerHTML = entries.map((e, i) => `
+  function draw(rows, absolute) {
+    list.innerHTML = rows.map((e, i) => `
       <div class="row" data-i="${i}">
         <span class="fname">${e.dir ? "&#128449;" : "&#128462;"} ${esc(e.name)}</span>
         <span class="fsize">${e.dir ? "" : human(e.size)}</span>
-      </div>`).join("") || '<div class="hint">empty</div>';
+      </div>`).join("") || '<div class="hint">nothing here</div>';
     list.querySelectorAll(".row").forEach((el) => {
-      const e = entries[+el.dataset.i];
-      el.onclick = () => e.dir ? go(cwd + "/" + e.name) : send({ op: "get", path: cwd + "/" + e.name });
+      const e = rows[+el.dataset.i];
+      const path = absolute ? e.name : cwd + "/" + e.name;
+      el.onclick = () => e.dir ? go(path) : send({ op: "get", path });
     });
   }
+
+  // Typing filters what is already listed; Enter asks the server to search below cwd.
+  findEl.oninput = () => {
+    const q = findEl.value.toLowerCase();
+    draw(entries.filter((e) => e.name.toLowerCase().includes(q)));
+  };
+  findEl.onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    pane.setStatus("searching " + cwd + "...");
+    send({ op: "find", path: cwd, q: findEl.value });
+  };
 
   function save(d) {
     if (!d) return;
@@ -300,15 +324,32 @@ function sftpPane(conn) {
   }
 
   pane.body.querySelector(".up").onclick = () => go(cwd + "/..");
-  pane.body.querySelector(".upload input").onchange = async (e) => {
-    for (const file of e.target.files) {
-      pane.setStatus("uploading " + file.name);
+  const CHUNK = 131072;
+  // Queueing a whole file into send() lets bufferedAmount grow without bound,
+  // which is how a browser drops the socket mid-upload. Stream it and wait.
+  const drain = () => new Promise((res) => {
+    const tick = () => (ws.readyState !== 1 || ws.bufferedAmount < 4 * CHUNK) ? res() : setTimeout(tick, 20);
+    tick();
+  });
+
+  pane.body.querySelector(".upload input").onchange = async (ev) => {
+    for (const file of ev.target.files) {
       send({ op: "put", path: cwd + "/" + file.name, size: file.size });
-      // ponytail: whole file buffered in memory. Use file.stream() if multi-GB uploads appear.
-      const buf = await file.arrayBuffer();
-      for (let o = 0; o < buf.byteLength; o += 131072) ws.send(buf.slice(o, o + 131072));
+      const reader = file.stream().getReader();
+      let sent = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done || ws.readyState !== 1) break;
+        for (let o = 0; o < value.byteLength; o += CHUNK) {
+          await drain();
+          if (ws.readyState !== 1) break;
+          ws.send(value.subarray(o, o + CHUNK));
+        }
+        sent += value.byteLength;
+        pane.setStatus(`uploading ${file.name} ${Math.round(100 * sent / (file.size || 1))}%`);
+      }
     }
-    e.target.value = "";
+    ev.target.value = "";
   };
   return pane;
 }
@@ -325,6 +366,12 @@ function askHostKey(ws, msg) {
   $("#hk-accept").onclick = () => answer(true);
   $("#hk-reject").onclick = () => answer(false);
 }
+
+$("#help-btn").onclick = () => $("#help").showModal();
+$("#help-close").onclick = () => $("#help").close();
+addEventListener("keydown", (e) => {
+  if (e.key === "F1") { e.preventDefault(); $("#help").open ? $("#help").close() : $("#help").showModal(); }
+});
 
 addEventListener("resize", () => activeTab && activeTab.panes.forEach((p) => p.resize && p.resize()));
 addEventListener("keydown", (e) => {

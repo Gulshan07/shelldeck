@@ -22,6 +22,7 @@
   <aside>
     <div class="side-head">
       <strong>Connections</strong>
+      <button id="help-btn" title="Help (F1)">?</button>
       <button id="new-btn" title="New connection">+</button>
     </div>
     <input id="filter" placeholder="Search…">
@@ -77,6 +78,76 @@
     <button id="hk-reject">Reject</button>
     <button id="hk-accept">Trust &amp; connect</button>
   </menu>
+</dialog>
+
+<dialog id="help">
+  <h2>EazyConnector &mdash; how to use it</h2>
+
+  <section>
+    <h3>Opening sessions</h3>
+    <table>
+      <tr><td><b>Click</b> a connection</td><td>opens a terminal in a new tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <b>click</b></td><td>splits it into the current tab, side by side</td></tr>
+      <tr><td>&#128449; icon on a row</td><td>opens an SFTP file browser (<kbd>Ctrl</kbd>-click to split it)</td></tr>
+      <tr><td>&#9998; / &#10005; icons</td><td>edit or delete a connection</td></tr>
+      <tr><td><b>+</b> top right</td><td>add a new connection</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h3>Keyboard</h3>
+    <table>
+      <tr><td><kbd>F1</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>previous / next tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close any dialog</td></tr>
+      <tr><td>Search box, top left</td><td>filter the connection list</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h3>Files (SFTP)</h3>
+    <table>
+      <tr><td>Click a folder / file</td><td>open it / download it</td></tr>
+      <tr><td><b>filter</b> box</td><td>type to filter this folder as you go</td></tr>
+      <tr><td><b>filter</b> box + <kbd>Enter</kbd></td><td>search the server recursively below the current folder</td></tr>
+      <tr><td><b>upload</b></td><td>send one or more files into the current folder</td></tr>
+      <tr><td>&#8593; up</td><td>go to the parent folder</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h3>Jump hosts</h3>
+    <p>Add the bastion as its own connection, then set it as the <b>Jump host</b> of the
+    target. Chains work: the jump host may have a jump host of its own. Host keys are
+    verified at every hop.</p>
+  </section>
+
+  <section>
+    <h3>Port forwarding</h3>
+    <p>One rule per line in the connection editor. They start with the session and stop
+    when its pane closes.</p>
+    <pre>L 8080:localhost:80     local 8080  &rarr; localhost:80 on the server
+R 9090:localhost:22     server's 9090 &rarr; localhost:22 on your machine
+D 1080                  SOCKS5 proxy on local 1080</pre>
+    <p class="note">Local and SOCKS listeners bind 127.0.0.1 only, never 0.0.0.0.</p>
+  </section>
+
+  <section>
+    <h3>Security</h3>
+    <ul>
+      <li>Passwords, private keys and passphrases live encrypted in
+        <code>~/.eazyconnector/vault.enc</code>. Hostnames and ports sit in plain
+        <code>config.json</code> &mdash; never any secret.</li>
+      <li>Secrets never reach the browser. The page asks to connect; the server authenticates.</li>
+      <li>The vault auto-locks after 15 minutes idle. Open sessions keep running.</li>
+      <li>Unknown SSH host keys ask before trusting. Verify the fingerprint out-of-band
+        (<code>ssh-keyscan -t rsa HOST | ssh-keygen -lf -</code>) before accepting.</li>
+      <li>The server listens on 127.0.0.1 only, and the URL token is in the fragment,
+        so it never reaches the server logs.</li>
+    </ul>
+  </section>
+
+  <menu><button id="help-close" autofocus>Close</button></menu>
 </dialog>
 
 <script src="/static/vendor/xterm.js"></script>

@@ -4,6 +4,7 @@ import contextlib
 import json
 import posixpath
 import secrets
+import shlex
 import stat
 import time
 import uuid
@@ -308,6 +309,7 @@ async def ssh_ws(ws):
 # --- sftp ----------------------------------------------------------------
 
 CHUNK = 128 * 1024
+FIND_TIMEOUT = 20
 
 
 async def _ws_session(ws):
@@ -344,6 +346,49 @@ async def _listdir(sftp, path):
         })
     entries.sort(key=lambda x: (not x["dir"], x["name"].lower()))
     return {"type": "list", "path": real, "entries": entries}
+
+
+async def _find_files(client, sftp, base, term):
+    """Recursive search on the server. GNU find prints the metadata in one shot;
+    anything else falls back to stat-ing the (capped) hits."""
+    term = term.strip()
+    if not term:
+        return {"type": "found", "q": term, "entries": []}
+    pat = shlex.quote(f"*{term}*")
+    base_q = shlex.quote(base)
+    fast = (f"find {base_q} -maxdepth 8 -iname {pat} -printf '%y\\t%s\\t%p\\n' "
+            f"2>/dev/null | head -n 300")
+    # A find over a huge tree must not wedge the pane forever.
+    async def run(cmd):
+        return await asyncio.wait_for(client.run(cmd, check=False), FIND_TIMEOUT)
+
+    try:
+        r = await run(fast)
+    except asyncio.TimeoutError:
+        return {"type": "found", "q": term, "entries": [],
+                "note": f"search timed out after {FIND_TIMEOUT}s"}
+    entries = []
+    if r.stdout.strip():
+        for line in r.stdout.splitlines():
+            kind, _, rest = line.partition("\t")
+            size, _, path = rest.partition("\t")
+            if path:
+                entries.append({"name": path, "dir": kind == "d", "size": int(size or 0)})
+    else:
+        try:
+            r = await run(f"find {base_q} -maxdepth 8 -iname {pat} 2>/dev/null | head -n 300")
+        except asyncio.TimeoutError:
+            return {"type": "found", "q": term, "entries": [],
+                    "note": f"search timed out after {FIND_TIMEOUT}s"}
+        for path in r.stdout.splitlines():
+            try:
+                a = await sftp.stat(path)
+                entries.append({"name": path, "dir": stat.S_ISDIR(a.permissions or 0),
+                                "size": a.size or 0})
+            except Exception:
+                entries.append({"name": path, "dir": False, "size": 0})
+    entries.sort(key=lambda e: (not e["dir"], e["name"].lower()))
+    return {"type": "found", "q": term, "entries": entries}
 
 
 async def sftp_ws(ws):
@@ -395,12 +440,22 @@ async def sftp_ws(ws):
                     async with sftp.open(req["path"], "wb") as f:
                         while remaining > 0:
                             frame = await ws.receive()
+                            # Returning here unwinds the stack cleanly. Raising would
+                            # loop back to ws.receive() after a disconnect, which is
+                            # a RuntimeError, not something to report to a gone client.
                             if frame["type"] == "websocket.disconnect":
-                                raise ConnectionAbortedError("upload interrupted")
-                            data = frame.get("bytes") or b""
+                                return
+                            data = frame.get("bytes")
+                            if data is None:
+                                continue
                             await f.write(data)
                             remaining -= len(data)
+                    await _say(ws, {"type": "uploaded", "name": posixpath.basename(req["path"])})
                     await _say(ws, await _listdir(sftp, posixpath.dirname(req["path"]) or "."))
+
+                elif op == "find":
+                    await _say(ws, await _find_files(client, sftp, req.get("path") or ".",
+                                               req.get("q", "")))
 
                 else:
                     await _say(ws, {"type": "error", "message": f"unknown op {op!r}"})

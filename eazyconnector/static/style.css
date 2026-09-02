@@ -77,3 +77,23 @@ textarea { font-family:ui-monospace, monospace; font-size:12px; resize:vertical;
 menu { display:flex; gap:8px; justify-content:flex-end; margin:14px 0 0; padding:0; }
 #hk-fp { background:var(--bg); border:1px solid var(--line); border-radius:6px;
   padding:10px; font-size:12px; overflow-x:auto; }
+
+#help { width:min(720px, 94vw); max-height:88vh; overflow:auto; }
+#help section { margin:0 0 18px; }
+#help h3 { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--accent); margin:0 0 8px; }
+#help table { width:100%; border-collapse:collapse; }
+#help td { padding:4px 8px 4px 0; vertical-align:top; border-bottom:1px solid var(--line); }
+#help td:first-child { white-space:nowrap; color:var(--fg); width:38%; }
+#help td:last-child { color:var(--muted); }
+#help p, #help li { color:var(--muted); margin:4px 0; }
+#help ul { padding-left:18px; }
+#help pre, #help code { background:var(--bg); border:1px solid var(--line); border-radius:6px;
+  font-size:12px; color:var(--fg); }
+#help pre { padding:10px; overflow-x:auto; }
+#help code { padding:1px 4px; }
+kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2px;
+  border-radius:4px; padding:1px 5px; font:11px ui-monospace, monospace; }
+#help-btn { padding:2px 9px; }
+.sftp-bar .find { flex:1; min-width:120px; padding:4px 8px; font-size:12px; }
+.sftp-bar .cwd { flex:0 1 auto; max-width:40%; }

@@ -12,8 +12,21 @@ SSHD_PORT, PW = 2298, "s3cret"
 
 async def fake_sshd():
     async def handler(proc):
+        if proc.command:                      # exec request, e.g. the SFTP search
+            r = await asyncio.create_subprocess_shell(
+                proc.command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            out, _ = await r.communicate()
+            proc.stdout.write(out.decode(errors="replace"))
+            proc.exit(r.returncode or 0)
+            return
         proc.stdout.write("hi\r\n")
-        async for line in proc.stdin:
+        while True:
+            try:
+                line = await proc.stdin.readline()
+            except asyncssh.TerminalSizeChanged:
+                continue          # a real PTY server keeps reading after SIGWINCH
+            if not line:
+                break
             proc.stdout.write(f"you said: {line.strip()}\r\n")
         proc.exit(0)
 
@@ -119,6 +132,7 @@ async def main():
         payload = b"hello from eazyconnector\n" * 500
         await ws.send(json.dumps({"op": "put", "path": f"{root}/upload.bin", "size": len(payload)}))
         await ws.send(payload)
+        assert json.loads(await ws.recv())["type"] == "uploaded"
         listing = json.loads(await ws.recv())
         up = next(e for e in listing["entries"] if e["name"] == "upload.bin")
         assert up["size"] == len(payload), up
@@ -138,6 +152,38 @@ async def main():
                 break
         assert got == payload, f"downloaded {len(got)} bytes, expected {len(payload)}"
         print("ok  sftp download returned identical bytes")
+
+        # multi-chunk upload, the way the browser actually sends one
+        big = bytes(range(256)) * 4096          # 1 MiB
+        await ws.send(json.dumps({"op": "put", "path": f"{root}/big.bin", "size": len(big)}))
+        for o in range(0, len(big), 131072):
+            await ws.send(big[o:o + 131072])
+        assert json.loads(await ws.recv())["type"] == "uploaded"
+        listing = json.loads(await ws.recv())
+        assert listing["type"] == "list", listing
+        assert open(f"{root}/big.bin", "rb").read() == big, "multi-chunk upload corrupted"
+        print("ok  multi-chunk upload:", len(big), "bytes in 8 frames")
+
+        # recursive server-side search
+        os.makedirs(f"{root}/deep/nested", exist_ok=True)
+        open(f"{root}/deep/nested/needle.log", "w").write("x" * 77)
+        await ws.send(json.dumps({"op": "find", "path": root, "q": "needle"}))
+        res = json.loads(await ws.recv())
+        assert res["type"] == "found", res
+        hit = next(e for e in res["entries"] if e["name"].endswith("needle.log"))
+        assert hit["size"] == 77, hit
+        print("ok  server-side find located", hit["name"], "with size", hit["size"])
+
+        await ws.send(json.dumps({"op": "find", "path": root, "q": "no-such-thing-xyz"}))
+        assert json.loads(await ws.recv())["entries"] == []
+        print("ok  find returns empty rather than erroring")
+
+        # a shell metacharacter in the term must not run as a command
+        open(f"{root}/safe.txt", "w").write("ok")
+        await ws.send(json.dumps({"op": "find", "path": root, "q": "'; touch /tmp/pwned_eazy; #"}))
+        assert json.loads(await ws.recv())["entries"] == []
+        assert not os.path.exists("/tmp/pwned_eazy"), "search term was executed as shell!"
+        print("ok  search term is quoted, not executed")
 
         await ws.send(json.dumps({"op": "get", "path": f"{root}/nope"}))
         assert json.loads(await ws.recv())["type"] == "error"
