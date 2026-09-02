@@ -20,7 +20,8 @@ input:focus, textarea:focus, select:focus { outline:1px solid var(--accent); bor
 
 #app { display:grid; grid-template-columns:260px 1fr; height:100vh; }
 aside { background:var(--panel); border-right:1px solid var(--line); padding:10px;
-  display:grid; grid-template-rows:auto auto 1fr auto auto; gap:8px; min-height:0; }
+  display:grid; grid-template-rows:auto auto 1fr auto auto; gap:8px; min-height:0;
+  overflow:hidden; }
 .side-head { display:flex; justify-content:space-between; align-items:center; }
 .side-head button { padding:2px 10px; }
 #tree { overflow:auto; min-height:0; }
@@ -35,7 +36,11 @@ aside { background:var(--panel); border-right:1px solid var(--line); padding:10p
 .conn:hover button { opacity:1; }
 .lock { color:var(--muted); }
 
-main { display:grid; grid-template-rows:auto 1fr; min-width:0; }
+/* Grid and flex items default to min-height:auto, so these would grow to fit
+   their content instead of being clipped by the 100vh track -- and then the
+   scroll container inside never scrolls. Every ancestor of a scroll area needs
+   min-height:0 all the way down. */
+main { display:grid; grid-template-rows:auto 1fr; min-width:0; min-height:0; overflow:hidden; }
 #tabbar { display:flex; gap:4px; align-items:center; padding:6px 8px; overflow-x:auto;
   border-bottom:1px solid var(--line); font-size:13px; }
 .hint { color:var(--muted); padding:2px 4px; }

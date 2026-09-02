@@ -20,6 +20,22 @@ import asyncssh, uvicorn, websockets
 from eazyconnector import store, server
 
 MASTER = "ui-master-pw"
+SSHD_PORT, SSH_PW = 2294, "pw"
+
+
+async def fake_sshd():
+    async def handler(proc):
+        proc.stdout.write("hi\r\n")
+        proc.exit(0)
+
+    class S(asyncssh.SSHServer):
+        def begin_auth(self, u): return True
+        def password_auth_supported(self): return True
+        def validate_password(self, u, p): return p == SSH_PW
+
+    await asyncssh.create_server(
+        S, "127.0.0.1", SSHD_PORT, process_factory=handler, sftp_factory=True,
+        server_host_keys=[asyncssh.generate_private_key("ssh-ed25519")])
 
 
 async def serve():
@@ -83,10 +99,18 @@ class Chrome:
 async def main():
     store.init_home()
     port = await serve()
+    await fake_sshd()
     store.save_config({"connections": [
-        {"id": "a", "name": "alpha", "group": "g", "host": "10.0.0.1", "port": 22,
+        {"id": "a", "name": "alpha", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,
          "user": "u", "auth": "password", "jump": "", "forwards": []}],
         "vpns": [{"id": "v", "name": "vee", "username": "u", "dialect": "auto"}]})
+
+    # a directory with more rows than fit on screen, to test scroll containment
+    big = os.path.join(os.environ["EAZY_HOME"], "big")
+    os.makedirs(big, exist_ok=True)
+    for i in range(120):
+        with open(os.path.join(big, f"file-{i}.bin"), "wb") as fh:
+            fh.write(b"x" * (i + 1))
 
     async with Chrome() as c:
         await c.call("Page.navigate", url=f"http://127.0.0.1:{port}/#{server.TOKEN}")
@@ -138,6 +162,26 @@ async def main():
 
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
+
+        # A long listing must scroll inside its pane, not stretch the page. Every
+        # ancestor needs min-height:0 or the grid item grows and nothing scrolls.
+        server.vault.put("a", {"password": SSH_PW})
+        store.KNOWN_HOSTS.write_text(server.known_hosts_entry(
+            "127.0.0.1", SSHD_PORT, await asyncssh.get_server_host_key("127.0.0.1", port=SSHD_PORT)))
+        await c.js('openSession("a","sftp",false)')
+        await asyncio.sleep(2)
+        await c.js(f'activeTab.panes[0].ws.send(JSON.stringify({{op:"ls",path:{big!r}}}))')
+        await asyncio.sleep(2)
+        rows = await c.js('document.querySelectorAll(".sftp-list .row").length')
+        assert rows >= 100, f"expected a long listing, got {rows} rows"
+        m = json.loads(await c.js("""JSON.stringify({
+            win: innerHeight, doc: document.documentElement.scrollHeight,
+            scrollable: (() => { const l = document.querySelector(".sftp-list");
+                                 return l.scrollHeight > l.clientHeight; })()})"""))
+        assert m["doc"] <= m["win"] + 2, \
+            f"page grew to {m['doc']}px for a {m['win']}px window: the listing is not contained"
+        assert m["scrollable"], "the file list does not scroll, so the tail is unreachable"
+        print(f"ok  {rows} files scroll inside the pane, page stays at {m['doc']}px")
 
     print("\nui passed")
 
