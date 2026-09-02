@@ -90,6 +90,23 @@ class Vault:
             raise BadPassword()
         self._salt, self._key, self._data = salt, key, json.loads(plain)
 
+    def rekey(self, old_password: str, new_password: str):
+        """Change the master password: verify old, re-encrypt under a new salt+key.
+        Must already be unlocked so live sessions keep working."""
+        if not self.unlocked:
+            raise Locked()
+        # Verify against the on-disk blob, not the in-memory key, so a stale unlock
+        # cannot be used to re-key with the wrong old password.
+        blob = VAULT.read_bytes()
+        salt, nonce, ct = blob[:16], blob[16:28], blob[28:]
+        try:
+            AESGCM(self._kdf(old_password, salt)).decrypt(nonce, ct, None)
+        except InvalidTag:
+            raise BadPassword()
+        self._salt = secrets.token_bytes(16)
+        self._key = self._kdf(new_password, self._salt)
+        self._flush()
+
     def lock(self):
         # ponytail: CPython can't reliably zero bytes in memory; mlock/secure-alloc
         # only if the threat model ever includes core dumps or swap forensics.

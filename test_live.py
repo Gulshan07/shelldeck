@@ -211,6 +211,23 @@ async def main():
         assert server.vault.get("vpn:" + vid) == {}
         print("ok  deleting a vpn profile wipes its secrets")
 
+        # change the master password, then prove the swap took effect
+        r = await http.post("/api/vault/change", json={"old": "master-password-1", "new": "brand-new-pw-9"})
+        assert r.status_code == 200, r.text
+        r = await http.post("/api/vault/change", json={"old": "master-password-1", "new": "another-valid-pw"})
+        assert r.status_code == 403, "old password should no longer be accepted"
+        r = await http.post("/api/vault/change", json={"old": "brand-new-pw-9", "new": "short"})
+        assert r.status_code == 400, "an 8+ char minimum must be enforced"
+        # the on-disk vault must now open only with the new password
+        v2 = store.Vault()
+        try:
+            v2.unlock("master-password-1"); raise AssertionError("old password still unlocks")
+        except store.BadPassword:
+            pass
+        v2.unlock("brand-new-pw-9")
+        server.vault.rekey("brand-new-pw-9", "master-password-1")   # restore for later assertions
+        print("ok  master password change re-encrypts the vault; old password stops working")
+
     # --- SFTP: list, upload, download over the real socket ------------------
     import base64
     async with websockets.connect(f"ws://127.0.0.1:{port}/ws/sftp",

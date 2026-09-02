@@ -32,7 +32,10 @@
       <div class="side-head"><strong>VPN</strong><button id="new-vpn-btn" title="Add VPN profile">+</button></div>
       <div id="vpn-list"></div>
     </div>
-    <button id="lock-btn" class="lock">Lock vault</button>
+    <div class="vault-actions">
+      <button id="passwd-btn" class="lock" title="Change the master password">Change password</button>
+      <button id="lock-btn" class="lock">Lock vault</button>
+    </div>
   </aside>
   <main>
     <div id="tabbar"></div>
@@ -71,6 +74,22 @@
     <menu>
       <button value="cancel" formnovalidate>Cancel</button>
       <button value="save" id="save-btn">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="passwd-dlg">
+  <form method="dialog" id="passwd-form">
+    <h2>Change master password</h2>
+    <p class="note">Re-encrypts the vault under a new password. Open sessions keep running;
+      the new password is needed the next time you unlock.</p>
+    <label>Current password <input name="old" type="password" autocomplete="current-password" required></label>
+    <label>New password (8+ characters) <input name="new" type="password" autocomplete="new-password" required minlength="8"></label>
+    <label>Confirm new password <input name="new2" type="password" autocomplete="new-password" required></label>
+    <div id="passwd-error" class="error"></div>
+    <menu>
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="save" id="passwd-save">Change</button>
     </menu>
   </form>
 </dialog>
@@ -230,6 +249,8 @@ D 1080                  SOCKS5 proxy on local 1080</pre>
         <code>config.json</code> &mdash; never any secret.</li>
       <li>Secrets never reach the browser. The page asks to connect; the server authenticates.</li>
       <li>The vault auto-locks after 15 minutes idle. Open sessions keep running.</li>
+      <li>Change the master password any time with the button by Lock vault — the vault is
+        re-encrypted and the old password stops working.</li>
       <li>Unknown SSH host keys ask before trusting. Verify the fingerprint out-of-band
         (<code>ssh-keyscan -t rsa HOST | ssh-keygen -lf -</code>) before accepting.</li>
       <li>The server listens on 127.0.0.1 only, and the URL token is in the fragment,

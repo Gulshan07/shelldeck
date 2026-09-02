@@ -91,6 +91,21 @@ async def vault_lock(request):
     return JSONResponse({"unlocked": False})
 
 
+@api
+async def vault_change(request):
+    if not vault.unlocked:
+        return JSONResponse({"error": "locked"}, status_code=423)
+    body = await request.json()
+    old, new = body.get("old", ""), body.get("new", "")
+    if len(new) < 8:
+        return JSONResponse({"error": "new master password must be 8+ characters"}, status_code=400)
+    try:
+        await asyncio.to_thread(vault.rekey, old, new)
+    except store.BadPassword:
+        return JSONResponse({"error": "current password is wrong"}, status_code=403)
+    return JSONResponse({"ok": True})
+
+
 # --- connections ---------------------------------------------------------
 
 
@@ -704,6 +719,7 @@ app = Starlette(
         Route("/api/vault", vault_status),
         Route("/api/vault/unlock", vault_unlock, methods=["POST"]),
         Route("/api/vault/lock", vault_lock, methods=["POST"]),
+        Route("/api/vault/change", vault_change, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
         Route("/api/import/{source}/preview", import_preview, methods=["GET", "POST"]),

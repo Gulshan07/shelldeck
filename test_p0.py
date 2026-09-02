@@ -37,6 +37,38 @@ def test_vault_roundtrip():
     assert v2.get("c1")["password"] == "hunter2"
 
 
+def test_rekey_master_password():
+    from eazyconnector import store as st
+    import tempfile
+    st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
+    st.VAULT = st.HOME / "vault.enc"
+    st.CONFIG = st.HOME / "config.json"
+
+    v = st.Vault()
+    v.create("old-password-1")
+    v.put("c1", {"password": "hunter2", "key_pem": "PEMDATA"})
+
+    # wrong current password is refused, vault unchanged
+    try:
+        v.rekey("not-the-old-one", "new-password-2")
+        raise AssertionError("rekey with wrong old password must fail")
+    except st.BadPassword:
+        pass
+
+    v.rekey("old-password-1", "new-password-2")
+    assert v.get("c1")["password"] == "hunter2", "secrets must survive a rekey"
+
+    # a fresh unlock proves the on-disk blob was re-encrypted under the new password
+    fresh = st.Vault()
+    try:
+        fresh.unlock("old-password-1")
+        raise AssertionError("old password must no longer unlock the vault")
+    except st.BadPassword:
+        pass
+    fresh.unlock("new-password-2")
+    assert fresh.get("c1")["key_pem"] == "PEMDATA"
+
+
 def test_secrets_never_in_plain_config():
     store.save_config({"connections": [{"id": "c1", "host": "h", "user": "u"}]})
     assert b"hunter2" not in store.CONFIG.read_bytes()

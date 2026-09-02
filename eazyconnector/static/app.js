@@ -32,6 +32,27 @@ $("#unlock-form").onsubmit = async (e) => {
   } catch (err) { $("#gate-error").textContent = err.message; }
 };
 
+$("#passwd-btn").onclick = () => {
+  $("#passwd-form").reset();
+  $("#passwd-error").textContent = "";
+  $("#passwd-dlg").showModal();
+};
+$("#passwd-dlg").onclose = async () => {
+  if ($("#passwd-dlg").returnValue !== "save") return;
+  const f = $("#passwd-form");
+  const [old, nw, nw2] = [f.old.value, f.new.value, f.new2.value];
+  if (nw !== nw2) { toastPasswd("The two new passwords do not match"); return; }
+  try {
+    await api("/api/vault/change", { method: "POST", body: JSON.stringify({ old, new: nw }) });
+    alert("Master password changed. Use the new one next time you unlock.");
+  } catch (err) { toastPasswd(err.message); }
+};
+// Re-open the dialog with the error, since a dialog cannot show one after it closed.
+function toastPasswd(msg) {
+  $("#passwd-error").textContent = msg;
+  $("#passwd-dlg").showModal();
+}
+
 $("#lock-btn").onclick = async () => {
   await api("/api/vault/lock", { method: "POST" });
   tabs.slice().forEach(closeTab);

@@ -59,8 +59,11 @@ noted) before you commit. Structure, hosts and key-file paths only; saved
 passwords are never read. Duplicates (same host, user, port) are skipped, so
 re-importing is safe.
 
-Not yet: session logging (rest of P1); master-password change;
-clusters, macros, serial/telnet (P3).
+The master password can be changed in place (button by Lock vault): the vault
+is re-encrypted under a new password with a fresh salt, open sessions keep
+running, and the old password stops working.
+
+Not yet: session logging (rest of P1); clusters, macros, serial/telnet (P3).
 
 ### Using it
 
@@ -77,8 +80,6 @@ clusters, macros, serial/telnet (P3).
   session and stop when its pane closes. Local and SOCKS listeners bind
   `127.0.0.1` only — on a shared machine `0.0.0.0` would hand the tunnel to
   every other user on the box.
-
-No way to change the master password yet — wipe `vault.enc` and start over.
 
 ## Tests
 
