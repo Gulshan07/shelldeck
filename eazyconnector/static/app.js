@@ -53,9 +53,16 @@ function renderTree() {
   for (const c of conns.filter((c) => (c.name + c.host + c.group).toLowerCase().includes(q)))
     (groups[c.group || "ungrouped"] ??= []).push(c);
 
-  $("#tree").innerHTML = Object.entries(groups).map(([g, list]) => `
-    <div class="group" data-group="${esc(list[0].group || "")}">
-      <div class="group-name">${esc(g)}</div>
+  $("#tree").innerHTML = Object.entries(groups).map(([g, list]) => {
+    const gval = list[0].group || "";
+    const shut = collapsed.has(gval);
+    return `
+    <div class="group ${shut ? "collapsed" : ""}" data-group="${esc(gval)}">
+      <div class="group-name" data-group="${esc(gval)}">
+        <span class="caret">${shut ? "&#9656;" : "&#9662;"}</span>${esc(g)}
+        <span class="group-count">${list.length}</span>
+      </div>
+      <div class="group-body">
       ${list.map((c) => `
         <div class="conn" draggable="true" data-id="${c.id}">
           <span class="conn-name">${esc(c.name)}</span>
@@ -64,7 +71,19 @@ function renderTree() {
           <button class="edit" data-id="${c.id}" title="Edit">&#9998;</button>
           <button class="del" data-id="${c.id}" title="Delete">&#10005;</button>
         </div>`).join("")}
-    </div>`).join("");
+      </div>
+    </div>`;
+  }).join("");
+
+  $("#tree").querySelectorAll(".group-name").forEach((h) => {
+    h.onclick = () => {
+      const g = h.dataset.group;
+      collapsed.has(g) ? collapsed.delete(g) : collapsed.add(g);
+      saveCollapsed();
+      h.closest(".group").classList.toggle("collapsed");
+      h.querySelector(".caret").innerHTML = collapsed.has(g) ? "&#9656;" : "&#9662;";
+    };
+  });
 
   $("#tree").querySelectorAll(".conn").forEach((el) => {
     el.onclick = (e) => {
@@ -126,6 +145,10 @@ function saveConn(conn) {
 }
 
 const nameOf = (id) => (conns.find((c) => c.id === id) || {}).name || "?";
+
+const collapsed = new Set(load("collapsedGroups"));
+function load(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
+function saveCollapsed() { try { localStorage.setItem("collapsedGroups", JSON.stringify([...collapsed])); } catch {} }
 $("#filter").oninput = renderTree;
 
 // --- editor -------------------------------------------------------------
