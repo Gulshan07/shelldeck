@@ -54,9 +54,10 @@ function renderTree() {
     (groups[c.group || "ungrouped"] ??= []).push(c);
 
   $("#tree").innerHTML = Object.entries(groups).map(([g, list]) => `
-    <div class="group"><div class="group-name">${esc(g)}</div>
+    <div class="group" data-group="${esc(list[0].group || "")}">
+      <div class="group-name">${esc(g)}</div>
       ${list.map((c) => `
-        <div class="conn" data-id="${c.id}">
+        <div class="conn" draggable="true" data-id="${c.id}">
           <span class="conn-name">${esc(c.name)}</span>
           <span class="conn-host">${esc(c.user)}@${esc(c.host)}${c.jump ? " &#8674; via " + esc(nameOf(c.jump)) : ""}${c.forwards && c.forwards.length ? " &middot; " + c.forwards.length + "&#8644;" : ""}</span>
           <button class="sftp" data-id="${c.id}" title="Browse files (SFTP)">&#128449;</button>
@@ -80,6 +81,47 @@ function renderTree() {
     if (!confirm("Delete this connection and its stored secrets?")) return;
     await api("/api/connections/" + id, { method: "DELETE" });
     loadTree();
+  });
+  wireDragDrop();
+}
+
+function wireDragDrop() {
+  let dragId = null;
+  $("#tree").querySelectorAll(".conn").forEach((el) => {
+    el.addEventListener("dragstart", (e) => {
+      dragId = el.dataset.id;
+      e.dataTransfer.effectAllowed = "move";
+      el.classList.add("dragging");
+    });
+    el.addEventListener("dragend", () => {
+      dragId = null;
+      $("#tree").querySelectorAll(".drop-into").forEach((g) => g.classList.remove("drop-into"));
+      el.classList.remove("dragging");
+    });
+  });
+  $("#tree").querySelectorAll(".group").forEach((g) => {
+    g.addEventListener("dragover", (e) => { e.preventDefault(); g.classList.add("drop-into"); });
+    g.addEventListener("dragleave", () => g.classList.remove("drop-into"));
+    g.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      g.classList.remove("drop-into");
+      const conn = conns.find((c) => c.id === dragId);
+      const target = g.dataset.group;
+      if (!conn || conn.group === target) return;
+      conn.group = target;                 // optimistic: move now, persist next
+      renderTree();
+      await saveConn(conn);
+      loadTree();
+    });
+  });
+}
+
+// Re-save a connection without touching its secrets. Blank secret fields mean
+// "unchanged" server-side, so grouping never disturbs a stored key or password.
+function saveConn(conn) {
+  return api("/api/connections", {
+    method: "POST",
+    body: JSON.stringify({ ...conn, forwards: (conn.forwards || []).join("\n") }),
   });
 }
 
