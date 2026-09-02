@@ -7,6 +7,8 @@ from pathlib import Path
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from . import platform
+
 HOME = Path(os.environ.get("EAZY_HOME") or Path.home() / ".eazyconnector")
 CONFIG = HOME / "config.json"
 VAULT = HOME / "vault.enc"
@@ -18,19 +20,18 @@ SCRYPT_MAXMEM = 1 << 28  # OpenSSL defaults to 32MB and would refuse the above
 
 
 def init_home():
-    os.umask(0o077)
-    HOME.mkdir(mode=0o700, parents=True, exist_ok=True)
-    HOME.chmod(0o700)  # enforce every launch, not just at create
+    platform.set_umask()
+    platform.make_private_dir(HOME)   # enforced every launch, not just at create
 
 
 def write_private(path: Path, data: bytes):
     """Atomic 0600 write. Mode enforced on every write, not just creation."""
     tmp = path.with_name(path.name + ".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = platform.open_private(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
     with os.fdopen(fd, "wb") as f:
         f.write(data)
     os.replace(tmp, path)
-    os.chmod(path, 0o600)
+    platform.lock_file(path)
 
 
 def load_config() -> dict:

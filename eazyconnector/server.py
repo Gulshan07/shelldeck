@@ -19,7 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import store
 from .vpn import Vpn, VpnError, detect_dialect
-from . import importers
+from . import importers, platform
 
 STATIC = Path(__file__).parent / "static"
 IDLE_LOCK_SECONDS = 15 * 60
@@ -504,7 +504,8 @@ async def _connect(conn, cid, ws, tunnel=None):
         kwargs["password"] = secrets_.get("password") or ""
         kwargs["client_keys"] = []
 
-    store.KNOWN_HOSTS.touch(mode=0o600, exist_ok=True)
+    store.KNOWN_HOSTS.touch(exist_ok=True)
+    platform.lock_file(store.KNOWN_HOSTS)
     try:
         return await asyncssh.connect(**kwargs)
     except asyncssh.HostKeyNotVerifiable:

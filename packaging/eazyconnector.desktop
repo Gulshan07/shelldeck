@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=EazyConnector
+Comment=SSH/SFTP connection manager with one-click VPN
+Exec=EazyConnector
+Icon=eazyconnector
+Categories=Network;RemoteAccess;
+Terminal=true

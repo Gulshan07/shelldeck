@@ -11,11 +11,10 @@ import hmac
 import os
 import re
 import secrets as pysecrets
-import shutil
 import struct
 import time
 
-from . import store
+from . import platform, store
 
 CONNECT_TIMEOUT = 90
 RUN_DIR = store.HOME / "run"
@@ -104,8 +103,11 @@ class Vpn:
             # State can read failed while openvpn is alive (e.g. status was missed).
             # Starting another would leave two tunnels fighting over the routes.
             await self.down()
-        if not shutil.which("openvpn"):
-            raise VpnError("openvpn is not installed or not on PATH")
+        openvpn = platform.find_openvpn()
+        if not openvpn:
+            raise VpnError("openvpn is not installed or not on PATH "
+                           "(Linux: sudo apt install openvpn · macOS: brew install openvpn · "
+                           "Windows: install OpenVPN)")
         ovpn = secret.get("ovpn")
         if not ovpn:
             raise VpnError("no .ovpn content stored for this profile")
@@ -114,8 +116,7 @@ class Vpn:
         self.profile_id, self.name = profile["id"], profile["name"]
         self.state, self.detail = "connecting", "starting openvpn"
 
-        RUN_DIR.mkdir(mode=0o700, exist_ok=True)
-        RUN_DIR.chmod(0o700)
+        platform.make_private_dir(RUN_DIR)
         cfg = RUN_DIR / f"{profile['id']}.ovpn"
         pwf = RUN_DIR / f"{profile['id']}.mgmt"
         mgmt_pw = pysecrets.token_urlsafe(24)
@@ -126,12 +127,11 @@ class Vpn:
         self._files = [cfg, pwf]
 
         port = _free_port()
-        argv = ["openvpn", "--config", str(cfg), "--management", "127.0.0.1", str(port), str(pwf),
+        argv = [openvpn, "--config", str(cfg), "--management", "127.0.0.1", str(port), str(pwf),
                 "--management-query-passwords", "--management-hold",
                 "--auth-nocache", "--verb", "3"]
         sudo_pw = secret.get("sudo_password")
-        if os.geteuid() != 0 and not os.environ.get("EAZY_OPENVPN_NO_SUDO"):
-            argv = (["sudo", "-S", "-p", ""] if sudo_pw else ["sudo", "-n"]) + argv
+        argv = platform.elevation_prefix(sudo_pw) + argv
 
         self._proc = await asyncio.create_subprocess_exec(
             *argv, cwd=str(RUN_DIR), stdin=asyncio.subprocess.PIPE,
