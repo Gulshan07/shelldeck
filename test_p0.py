@@ -49,6 +49,29 @@ def test_file_modes():
     assert stat.S_IMODE(store.HOME.stat().st_mode) == 0o700
 
 
+def test_known_hosts_entries_actually_match():
+    """A "[host]:22" line parses fine but matches nothing, so the host stays
+    untrusted and re-prompts forever. Port 22 is the case that broke."""
+    import asyncssh
+    from eazyconnector.server import known_hosts_entry
+
+    key = asyncssh.generate_private_key("ssh-ed25519")
+    path = store.HOME / "kh_test"
+    # asyncssh looks up the DEFAULT port as None, not 22. Querying 22 explicitly
+    # makes a "[host]:22" line look valid when it is not, so mirror the real call.
+    for host, port, lookup_port in [("10.0.0.1", 22, None), ("10.0.0.2", 2222, 2222)]:
+        store.write_private(path, known_hosts_entry(host, port, key).encode())
+        trusted = asyncssh.match_known_hosts(str(path), host, host, lookup_port)[0]
+        assert any(k.export_public_key() == key.export_public_key() for k in trusted), \
+            f"entry for {host}:{port} matched nothing at connect time"
+
+    # and prove the old bracketed form really is the broken one
+    store.write_private(path, f"[10.0.0.1]:22 {key.export_public_key().decode().strip()}\n".encode())
+    assert not asyncssh.match_known_hosts(str(path), "10.0.0.1", "10.0.0.1", None)[0], \
+        "expected [host]:22 to match nothing"
+    path.unlink()
+
+
 def test_origin_guard():
     def scope(origin, host="127.0.0.1:9999"):
         h = [(b"host", host.encode())]

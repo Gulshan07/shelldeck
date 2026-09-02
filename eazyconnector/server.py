@@ -128,6 +128,13 @@ async def delete_connection(request):
 # --- ssh -----------------------------------------------------------------
 
 
+def known_hosts_entry(host, port, key) -> str:
+    """OpenSSH brackets the host only for non-default ports. A "[host]:22" line
+    matches nothing, so the host stays untrusted and re-prompts forever."""
+    target = host if port == 22 else f"[{host}]:{port}"
+    return f"{target} {key.export_public_key().decode().strip()}\n"
+
+
 async def _say(ws, payload) -> bool:
     """Send, tolerating a client that already went away. True if it landed."""
     try:
@@ -181,9 +188,8 @@ async def _connect(conn, cid, ws, tunnel=None):
         reply = await ws.receive_json()
         if reply.get("accept") is not True:
             raise ConnectionAbortedError("host key rejected")
-        entry = f"[{conn['host']}]:{conn['port']} {key.export_public_key().decode().strip()}\n"
         with open(store.KNOWN_HOSTS, "a") as f:
-            f.write(entry)
+            f.write(known_hosts_entry(conn["host"], conn["port"], key))
         return await asyncssh.connect(**kwargs)
 
 
