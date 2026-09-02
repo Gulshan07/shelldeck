@@ -128,6 +128,15 @@ async def delete_connection(request):
 # --- ssh -----------------------------------------------------------------
 
 
+async def _say(ws, payload) -> bool:
+    """Send, tolerating a client that already went away. True if it landed."""
+    try:
+        await ws.send_json(payload)
+        return True
+    except Exception:
+        return False
+
+
 def _find(cid):
     return next((c for c in store.load_config()["connections"] if c["id"] == cid), None)
 
@@ -165,9 +174,10 @@ async def _connect(conn, cid, ws, tunnel=None):
         return await asyncssh.connect(**kwargs)
     except asyncssh.HostKeyNotVerifiable:
         key = await asyncssh.get_server_host_key(conn["host"], port=conn["port"], tunnel=tunnel)
-        await ws.send_json({"type": "hostkey", "host": f"{conn['host']}:{conn['port']}",
-                            "name": conn["name"], "fingerprint": key.get_fingerprint(),
-                            "algo": key.get_algorithm()})
+        if not await _say(ws, {"type": "hostkey", "host": f"{conn['host']}:{conn['port']}",
+                               "name": conn["name"], "fingerprint": key.get_fingerprint(),
+                               "algo": key.get_algorithm()}):
+            raise ConnectionAbortedError("client left before the host key was confirmed")
         reply = await ws.receive_json()
         if reply.get("accept") is not True:
             raise ConnectionAbortedError("host key rejected")
@@ -192,16 +202,19 @@ async def ssh_ws(ws):
     cid = first.get("id")
     conn = _find(cid)
     if conn is None or not vault.unlocked:
-        await ws.send_json({"type": "error", "message": "unknown connection or vault locked"})
-        await ws.close()
+        await _say(ws, {"type": "error", "message": "unknown connection or vault locked"})
+        with contextlib.suppress(Exception):
+            await ws.close()
         return
 
     async with contextlib.AsyncExitStack() as stack:
         try:
             client = await _open_chain(cid, ws, stack)
         except Exception as e:
-            await ws.send_json({"type": "error", "message": f"{type(e).__name__}: {e}"})
-            await ws.close()
+            print(f"[eazyconnector] {conn['name']}: {type(e).__name__}: {e}")
+            await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
+            with contextlib.suppress(Exception):
+                await ws.close()
             return
 
         proc = await client.create_process(

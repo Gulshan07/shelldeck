@@ -69,7 +69,7 @@ function renderTree() {
     </div>`).join("");
 
   $("#tree").querySelectorAll(".conn").forEach((el) => {
-    el.onclick = (e) => { if (!e.target.dataset.id || e.target.classList.contains("conn-name")) connect(el.dataset.id); };
+    el.onclick = (e) => { if (!e.target.closest("button")) connect(el.dataset.id); };
   });
   $("#tree").querySelectorAll(".edit").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openEditor(conns.find((c) => c.id === b.dataset.id)); });
   $("#tree").querySelectorAll(".del").forEach((b) => b.onclick = async (e) => {
@@ -127,9 +127,11 @@ term.open($("#term"));
 fit.fit();
 
 let ws = null;
+let wsGen = 0;  // only the newest socket may touch the terminal
 
 function connect(id) {
   const conn = conns.find((c) => c.id === id);
+  const gen = ++wsGen;
   if (ws) ws.close();
   term.reset();
   $("#status").textContent = `Connecting to ${conn.name}…`;
@@ -139,11 +141,13 @@ function connect(id) {
   let sawServer = false;
 
   ws.onopen = () => {
+    if (gen !== wsGen) { ws.close(); return; }
     fit.fit();
     ws.send(JSON.stringify({ token: TOKEN, id, cols: term.cols, rows: term.rows }));
   };
 
   ws.onmessage = (ev) => {
+    if (gen !== wsGen) return;
     sawServer = true;
     if (ev.data instanceof ArrayBuffer) { term.write(new Uint8Array(ev.data)); return; }
     const msg = JSON.parse(ev.data);
@@ -153,6 +157,7 @@ function connect(id) {
   };
 
   ws.onclose = (ev) => {
+    if (gen !== wsGen) return;  // superseded by a newer connect; stay quiet
     $("#status").textContent = "Not connected";
     // A close with nothing received means the socket never reached the app.
     term.writeln(sawServer
