@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EazyConnector</title>
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <form id="unlock-form">
+    <h1>EazyConnector</h1>
+    <p id="gate-hint">Unlock your vault</p>
+    <input id="master" type="password" placeholder="Master password" autofocus>
+    <button>Unlock</button>
+    <div id="gate-error" class="error"></div>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside>
+    <div class="side-head">
+      <strong>Connections</strong>
+      <button id="new-btn" title="New connection">+</button>
+    </div>
+    <input id="filter" placeholder="Search…">
+    <div id="tree"></div>
+    <button id="lock-btn" class="lock">Lock vault</button>
+  </aside>
+  <main>
+    <div id="tabbar"><span id="status">Not connected</span></div>
+    <div id="term"></div>
+  </main>
+</div>
+
+<dialog id="editor">
+  <form method="dialog" id="conn-form">
+    <h2>Connection</h2>
+    <input type="hidden" name="id">
+    <label>Name <input name="name" required></label>
+    <label>Group <input name="group" placeholder="prod"></label>
+    <label>Host <input name="host" required></label>
+    <label>Port <input name="port" type="number" value="22"></label>
+    <label>User <input name="user" required></label>
+    <label>Auth
+      <select name="auth">
+        <option value="password">Password</option>
+        <option value="key">Private key</option>
+      </select>
+    </label>
+    <label class="auth-password">Password <input name="password" type="password"></label>
+    <label class="auth-key">Private key (paste PEM, or drop a file below)
+      <textarea name="key_pem" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+    </label>
+    <label class="auth-key">Key file <input type="file" id="keyfile"></label>
+    <label class="auth-key">Passphrase <input name="passphrase" type="password"></label>
+    <p class="note">Secrets are encrypted into the vault. Nothing is stored in plain config.</p>
+    <menu>
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="save" id="save-btn">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="hostkey">
+  <h2>Unknown host key</h2>
+  <p>First connection to <b id="hk-host"></b>. Verify this fingerprint out-of-band before trusting it.</p>
+  <pre id="hk-fp"></pre>
+  <menu>
+    <button id="hk-reject">Reject</button>
+    <button id="hk-accept">Trust &amp; connect</button>
+  </menu>
+</dialog>
+
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/xterm-addon-fit.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

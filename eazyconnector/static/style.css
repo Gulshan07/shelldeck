@@ -1,0 +1,50 @@
+:root { --bg:#15171c; --panel:#1c1f26; --line:#2b2f39; --fg:#d8dbe2; --muted:#868d9c; --accent:#5aa9e6; }
+* { box-sizing: border-box; }
+body { margin:0; height:100vh; background:var(--bg); color:var(--fg);
+  font:14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+.gate { height:100vh; display:grid; place-items:center; }
+.gate form { display:grid; gap:12px; width:300px; }
+.gate h1 { margin:0; font-size:22px; font-weight:600; }
+.gate p { margin:0; color:var(--muted); }
+.error { color:#e5707a; min-height:18px; font-size:13px; }
+
+input, select, textarea, button { font:inherit; color:var(--fg); background:var(--panel);
+  border:1px solid var(--line); border-radius:6px; padding:8px 10px; }
+button { cursor:pointer; }
+button:hover { border-color:var(--accent); }
+input:focus, textarea:focus, select:focus { outline:1px solid var(--accent); border-color:var(--accent); }
+
+#app { display:grid; grid-template-columns:260px 1fr; height:100vh; }
+aside { background:var(--panel); border-right:1px solid var(--line); padding:10px;
+  display:grid; grid-template-rows:auto auto 1fr auto; gap:8px; min-height:0; }
+.side-head { display:flex; justify-content:space-between; align-items:center; }
+.side-head button { padding:2px 10px; }
+#tree { overflow:auto; min-height:0; }
+.group-name { color:var(--muted); font-size:11px; text-transform:uppercase;
+  letter-spacing:.06em; margin:10px 0 4px; }
+.conn { display:grid; grid-template-columns:1fr auto auto; align-items:center;
+  gap:4px; padding:6px 8px; border-radius:6px; cursor:pointer; }
+.conn:hover { background:#252932; }
+.conn-name { grid-column:1; }
+.conn-host { grid-column:1; grid-row:2; color:var(--muted); font-size:12px; }
+.conn button { background:none; border:none; color:var(--muted); padding:2px 6px; opacity:0; }
+.conn:hover button { opacity:1; }
+.lock { color:var(--muted); }
+
+main { display:grid; grid-template-rows:auto 1fr; min-width:0; }
+#tabbar { padding:8px 12px; border-bottom:1px solid var(--line); color:var(--muted); font-size:13px; }
+#term { min-height:0; padding:6px; }
+
+dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+  border-radius:10px; padding:20px; width:min(460px, 92vw); }
+dialog::backdrop { background:#0008; }
+dialog h2 { margin:0 0 14px; font-size:17px; }
+#conn-form { display:grid; gap:10px; }
+label { display:grid; gap:4px; font-size:13px; color:var(--muted); }
+label input, label select, label textarea { color:var(--fg); }
+textarea { font-family:ui-monospace, monospace; font-size:12px; resize:vertical; }
+.note { color:var(--muted); font-size:12px; margin:0; }
+menu { display:flex; gap:8px; justify-content:flex-end; margin:14px 0 0; padding:0; }
+#hk-fp { background:var(--bg); border:1px solid var(--line); border-radius:6px;
+  padding:10px; font-size:12px; overflow-x:auto; }
