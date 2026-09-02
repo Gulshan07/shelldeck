@@ -17,8 +17,11 @@ async function refreshGate() {
   $("#gate-hint").textContent = v.exists ? "Unlock your vault" : "Create a master password (8+ chars)";
   $("#gate").hidden = v.unlocked;
   $("#app").hidden = !v.unlocked;
-  if (v.unlocked) loadTree();
-  else $("#master").focus();
+  if (v.unlocked) {
+    loadTree();
+    // #app was display:none until now, so the terminal measured 0x0 at open().
+    requestAnimationFrame(() => fit.fit());
+  } else $("#master").focus();
 }
 
 $("#unlock-form").onsubmit = async (e) => {

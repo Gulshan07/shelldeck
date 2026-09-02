@@ -1,6 +1,9 @@
 :root { --bg:#15171c; --panel:#1c1f26; --line:#2b2f39; --fg:#d8dbe2; --muted:#868d9c; --accent:#5aa9e6; }
 * { box-sizing: border-box; }
-body { margin:0; height:100vh; background:var(--bg); color:var(--fg);
+/* Author `display:grid` below beats the UA `[hidden]{display:none}`, so el.hidden
+   silently does nothing without this. */
+[hidden] { display: none !important; }
+body { margin:0; height:100vh; overflow:hidden; background:var(--bg); color:var(--fg);
   font:14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 .gate { height:100vh; display:grid; place-items:center; }
@@ -34,7 +37,7 @@ aside { background:var(--panel); border-right:1px solid var(--line); padding:10p
 
 main { display:grid; grid-template-rows:auto 1fr; min-width:0; }
 #tabbar { padding:8px 12px; border-bottom:1px solid var(--line); color:var(--muted); font-size:13px; }
-#term { min-height:0; padding:6px; }
+#term { min-height:0; overflow:hidden; padding:6px; }
 
 dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line);
   border-radius:10px; padding:20px; width:min(460px, 92vw); }
