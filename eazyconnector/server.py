@@ -132,6 +132,9 @@ async def connections(request):
         "local_before": (body.get("local_before") or "").strip(),
         "remote_command": (body.get("remote_command") or "").strip(),
         "local_after": (body.get("local_after") or "").strip(),
+        "proto": body.get("proto") or "ssh",
+        "serial_device": (body.get("serial_device") or "").strip(),
+        "baud": int(body.get("baud") or 115200),
     }
     for rule in conn["forwards"]:
         try:
@@ -639,9 +642,125 @@ async def _say_bytes_line(ws, text):
         await ws.send_bytes((text + "\r\n").encode())
 
 
+# telnet negotiation bytes
+_IAC, _SE, _SB, _WILL, _WONT, _DO, _DONT = 255, 240, 250, 251, 252, 253, 254
+
+
+def _telnet_filter(data: bytes, writer) -> bytes:
+    """Strip telnet IAC sequences and refuse every option, so the terminal sees
+    clean text. ponytail: an IAC split across reads loses one byte — rare, and
+    only worth a state machine if a device actually trips on it."""
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        b = data[i]
+        if b == _IAC and i + 1 < len(data):
+            cmd = data[i + 1]
+            if cmd in (_DO, _DONT, _WILL, _WONT) and i + 2 < len(data):
+                opt = data[i + 2]
+                if cmd == _DO:
+                    writer.write(bytes([_IAC, _WONT, opt]))
+                elif cmd == _WILL:
+                    writer.write(bytes([_IAC, _DONT, opt]))
+                i += 3
+                continue
+            if cmd == _SB:                      # sub-negotiation: skip to IAC SE
+                j = i + 2
+                while j + 1 < len(data) and not (data[j] == _IAC and data[j + 1] == _SE):
+                    j += 1
+                i = j + 2
+                continue
+            i += 2
+            continue
+        out.append(b)
+        i += 1
+    return bytes(out)
+
+
+async def raw_session(ws, conn):
+    """Telnet or serial: a plain byte stream, no SSH, no jump, no host key."""
+    proto = conn["proto"]
+    try:
+        if proto == "telnet":
+            reader, writer = await asyncio.open_connection(conn["host"], conn["port"])
+        else:  # serial
+            import serial_asyncio
+            device = conn.get("serial_device") or conn["host"]
+            reader, writer = await serial_asyncio.open_serial_connection(
+                url=device, baudrate=int(conn.get("baud") or 115200))
+    except ImportError:
+        await _say(ws, {"type": "error", "message": "serial support needs pyserial-asyncio "
+                        "(pip install pyserial-asyncio)"})
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+    except Exception as e:
+        await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
+        with contextlib.suppress(Exception):
+            await ws.close()
+        return
+
+    await _say(ws, {"type": "ready", "forwards": []})
+    logger = session_log.SessionLog(vault, conn["name"]) if conn.get("log") else None
+    recent = bytearray()
+
+    async def pump():
+        while True:
+            data = await reader.read(65536)
+            if not data:
+                break
+            if proto == "telnet":
+                data = _telnet_filter(data, writer)
+                if not data:
+                    continue
+            if logger:
+                logger.write(data)
+            recent.extend(data)
+            del recent[:-16384]
+            await ws.send_bytes(data)
+
+    async def run_macro(body):
+        try:
+            async for status in macro_mod.run(macro_mod.parse(body), writer.write, recent):
+                await _say(ws, {"type": "macro_status", "message": status})
+            await _say(ws, {"type": "macro_status", "message": "macro done", "done": True})
+        except Exception as e:
+            await _say(ws, {"type": "macro_status", "message": f"macro stopped: {e}",
+                            "done": True, "error": True})
+
+    out = asyncio.create_task(pump())
+    try:
+        while True:
+            try:
+                msg = await ws.receive()
+            except Exception:
+                break
+            if msg["type"] == "websocket.disconnect":
+                break
+            _touch()
+            try:
+                if msg.get("bytes") is not None:
+                    writer.write(msg["bytes"])
+                elif msg.get("text"):
+                    ctl = json.loads(msg["text"])
+                    if ctl.get("type") == "macro" and ctl.get("body"):
+                        asyncio.create_task(run_macro(ctl["body"]))
+            except Exception as e:
+                print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
+    finally:
+        out.cancel()
+        if logger:
+            logger.close()
+        with contextlib.suppress(Exception):
+            writer.close()
+
+
 async def ssh_ws(ws):
     conn, first = await _ws_session(ws)
     if conn is None:
+        return
+    if conn.get("proto") in ("telnet", "serial"):
+        await raw_session(ws, conn)
         return
     cid = first["id"]
 
@@ -690,7 +809,7 @@ async def ssh_ws(ws):
 
         async def run_macro(body):
             try:
-                async for status in macro_mod.run(macro_mod.parse(body), proc, recent):
+                async for status in macro_mod.run(macro_mod.parse(body), proc.stdin.write, recent):
                     await _say(ws, {"type": "macro_status", "message": status})
                 await _say(ws, {"type": "macro_status", "message": "macro done", "done": True})
             except Exception as e:

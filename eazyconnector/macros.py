@@ -38,16 +38,17 @@ def parse(script: str):
     return steps
 
 
-async def run(steps, proc, recent):
-    """Drive a macro against an asyncssh process.
+async def run(steps, write, recent):
+    """Drive a macro against a live session.
 
-    `proc.stdin.write` sends input; `recent` is a mutable bytearray the caller
-    keeps filled with the latest terminal output, so `expect` can watch it.
-    Yields status strings for the UI. Raises TimeoutError on a missed expect.
+    `write(bytes)` sends input (proc.stdin.write for SSH, writer.write for
+    telnet/serial); `recent` is a mutable bytearray the caller keeps filled with
+    the latest terminal output, so `expect` can watch it. Yields status strings
+    for the UI. Raises TimeoutError on a missed expect.
     """
     for op, arg in steps:
         if op == "send":
-            proc.stdin.write(arg.encode())
+            write(arg.encode())
             yield f"sent: {arg.strip()[:40]}"
         elif op == "sleep":
             await asyncio.sleep(min(arg, 60))

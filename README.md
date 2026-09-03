@@ -82,7 +82,10 @@ font size and family** are set via the gear button and saved per browser.
 Clusters: open several servers as split panes in one tab, click **⇄ broadcast**,
 and your typing goes to every terminal at once — run one command across a fleet.
 
-Not yet: macros/expect-send, serial/telnet, session recording playback (rest of P3).
+Recording playback (replay a session log at real speed), macros (scripted
+send/expect, run per-terminal or across a broadcast cluster), and Telnet +
+Serial console access are in. Serial needs `pip install pyserial-asyncio`.
+
 Wake-on-LAN skipped — it only wakes physical LAN machines, not cloud instances.
 
 ### Using it

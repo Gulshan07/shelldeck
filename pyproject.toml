@@ -9,6 +9,7 @@ dependencies = ["asyncssh>=2.14", "starlette>=0.37", "uvicorn>=0.30", "websocket
 [project.optional-dependencies]
 build = ["pyinstaller>=6"]
 import = ["pyyaml>=6"]
+serial = ["pyserial-asyncio>=0.6"]
 
 [project.scripts]
 eazyconnector = "eazyconnector.__main__:main"

@@ -53,13 +53,22 @@
     <input type="hidden" name="id">
     <label>Name <input name="name" required></label>
     <label>Group <input name="group" placeholder="prod"></label>
-    <label>Host <input name="host" required></label>
-    <label>Port <input name="port" type="number" value="22"></label>
-    <label>User <input name="user" required></label>
-    <label>Jump host
+    <label>Protocol
+      <select name="proto">
+        <option value="ssh">SSH</option>
+        <option value="telnet">Telnet</option>
+        <option value="serial">Serial</option>
+      </select>
+    </label>
+    <label class="proto-net">Host <input name="host"></label>
+    <label class="proto-net">Port <input name="port" type="number" value="22"></label>
+    <label class="proto-serial">Serial device <input name="serial_device" placeholder="/dev/ttyUSB0"></label>
+    <label class="proto-serial">Baud <input name="baud" type="number" value="115200"></label>
+    <label class="proto-ssh">User <input name="user"></label>
+    <label class="proto-ssh">Jump host
       <select name="jump"><option value="">— direct —</option></select>
     </label>
-    <label>Auth
+    <label class="proto-ssh">Auth
       <select name="auth">
         <option value="password">Password</option>
         <option value="key">Private key</option>

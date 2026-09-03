@@ -197,7 +197,7 @@ function openEditor(conn) {
     if (f[k].type === "checkbox") f[k].checked = !!v;
     else f[k].value = Array.isArray(v) ? v.join("\n") : v;
   }
-  syncAuthFields();
+  syncProtoFields();
   $("#editor").showModal();
 }
 
@@ -206,6 +206,18 @@ function syncAuthFields() {
   document.querySelectorAll(".auth-password").forEach((e) => e.hidden = mode !== "password");
   document.querySelectorAll(".auth-key").forEach((e) => e.hidden = mode !== "key");
 }
+function syncProtoFields() {
+  const p = $("#conn-form").proto.value;
+  document.querySelectorAll(".proto-ssh").forEach((e) => e.hidden = p !== "ssh");
+  document.querySelectorAll(".proto-net").forEach((e) => e.hidden = p === "serial");
+  document.querySelectorAll(".proto-serial").forEach((e) => e.hidden = p !== "serial");
+  // host/user aren't required for serial; avoid the browser blocking a hidden field
+  const f = $("#conn-form");
+  f.host.required = p !== "serial";
+  f.user.required = p === "ssh";
+  if (p === "ssh") syncAuthFields();
+}
+$("#conn-form").proto.onchange = syncProtoFields;
 $("#conn-form").auth.onchange = syncAuthFields;
 $("#new-btn").onclick = () => openEditor(null);
 
