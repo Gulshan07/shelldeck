@@ -18,7 +18,10 @@ button { cursor:pointer; }
 button:hover { border-color:var(--accent); }
 input:focus, textarea:focus, select:focus { outline:1px solid var(--accent); border-color:var(--accent); }
 
-#app { display:grid; grid-template-columns:260px 1fr; height:100vh; }
+#app { position:relative; display:grid; grid-template-columns:var(--sidebar-w, 260px) 1fr; height:100vh; }
+#resizer { position:absolute; top:0; bottom:0; left:var(--sidebar-w, 260px); width:7px;
+  margin-left:-3px; cursor:col-resize; z-index:30; }
+#resizer:hover, #resizer.drag { background:var(--accent); opacity:.35; }
 aside { background:var(--panel); border-right:1px solid var(--line); padding:10px;
   display:grid; grid-template-rows:auto auto 1fr auto auto; gap:8px; min-height:0;
   overflow:hidden; }

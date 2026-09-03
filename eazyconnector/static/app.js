@@ -783,3 +783,37 @@ addEventListener("keydown", (e) => {
 });
 
 refreshGate();
+
+// --- resizable sidebar --------------------------------------------------
+
+(() => {
+  const rz = $("#resizer");
+  const root = document.documentElement;
+  const setW = (px) => root.style.setProperty("--sidebar-w", Math.min(520, Math.max(170, px)) + "px");
+  try { const w = +localStorage.getItem("sidebarW"); if (w) setW(w); } catch {}
+
+  rz.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    rz.setPointerCapture(e.pointerId);
+    rz.classList.add("drag");
+    const move = (ev) => { setW(ev.clientX); activeTab?.panes.forEach((p) => p.resize?.()); };
+    const up = () => {
+      rz.classList.remove("drag");
+      rz.removeEventListener("pointermove", move);
+      rz.removeEventListener("pointerup", up);
+      try {
+        localStorage.setItem("sidebarW",
+          parseInt(getComputedStyle(root).getPropertyValue("--sidebar-w")));
+      } catch {}
+      activeTab?.panes.forEach((p) => p.resize?.());
+    };
+    rz.addEventListener("pointermove", move);
+    rz.addEventListener("pointerup", up);
+  });
+  // double-click resets to the default width
+  rz.addEventListener("dblclick", () => {
+    root.style.removeProperty("--sidebar-w");
+    try { localStorage.removeItem("sidebarW"); } catch {}
+    activeTab?.panes.forEach((p) => p.resize?.());
+  });
+})();
