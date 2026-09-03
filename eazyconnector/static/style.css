@@ -32,6 +32,10 @@ aside { background:var(--panel); border-right:1px solid var(--line); padding:10p
 .group-name:hover { color:#fff; }
 .caret { font-size:10px; width:10px; color:var(--muted); }
 .group-count { margin-left:auto; color:var(--muted); font-weight:400; font-size:11px; }
+.group-open { background:none; border:none; color:var(--muted); padding:0 2px; font-size:13px;
+  opacity:0; cursor:pointer; }
+.group-name:hover .group-open { opacity:1; }
+.group-open:hover { color:var(--accent); }
 .group.collapsed .group-body { display:none; }
 .conn { display:grid; grid-template-columns:1fr auto auto; align-items:center;
   gap:4px; padding:6px 8px; border-radius:6px; cursor:pointer; }

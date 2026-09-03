@@ -82,6 +82,7 @@ function renderTree() {
       <div class="group-name" data-group="${esc(gval)}">
         <span class="caret">${shut ? "&#9656;" : "&#9662;"}</span>${esc(g)}
         <span class="group-count">${list.length}</span>
+        <button class="group-open" data-group="${esc(gval)}" title="Open all in one tab (for broadcast)">&#9707;</button>
       </div>
       <div class="group-body">
       ${list.map((c) => `
@@ -97,7 +98,8 @@ function renderTree() {
   }).join("");
 
   $("#tree").querySelectorAll(".group-name").forEach((h) => {
-    h.onclick = () => {
+    h.onclick = (e) => {
+      if (e.target.closest(".group-open")) return;   // the open-all button, not collapse
       const g = h.dataset.group;
       collapsed.has(g) ? collapsed.delete(g) : collapsed.add(g);
       saveCollapsed();
@@ -105,6 +107,8 @@ function renderTree() {
       h.querySelector(".caret").innerHTML = collapsed.has(g) ? "&#9656;" : "&#9662;";
     };
   });
+  $("#tree").querySelectorAll(".group-open").forEach((b) =>
+    b.onclick = (e) => { e.stopPropagation(); openGroup(b.dataset.group); });
 
   $("#tree").querySelectorAll(".conn").forEach((el) => {
     el.onclick = (e) => {
@@ -556,6 +560,19 @@ function openSession(cid, kind, split) {
   const conn = conns.find((c) => c.id === cid);
   const tab = (split && activeTab) ? activeTab : newTab();
   tab.panes.push(kind === "sftp" ? sftpPane(conn) : termPane(conn));
+  activeTab = tab;
+  render();
+}
+
+// Open every connection in a group as split terminals in one new tab, ready to
+// broadcast. A big group makes tiny panes, so confirm past a handful.
+function openGroup(gval) {
+  const list = conns.filter((c) => (c.group || "") === gval);
+  if (!list.length) return;
+  if (list.length > 6 &&
+      !confirm(`Open all ${list.length} connections in this group side by side?`)) return;
+  const tab = newTab();
+  for (const c of list) tab.panes.push(termPane(c));
   activeTab = tab;
   render();
 }
