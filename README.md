@@ -79,8 +79,11 @@ before connecting, a command run on the server right after login, a local
 command after disconnecting, and the keepalive interval. Terminal **theme,
 font size and family** are set via the gear button and saved per browser.
 
-Not yet: clusters, macros, serial/telnet (P3). Wake-on-LAN skipped —
-it only wakes physical LAN machines, not cloud instances.
+Clusters: open several servers as split panes in one tab, click **⇄ broadcast**,
+and your typing goes to every terminal at once — run one command across a fleet.
+
+Not yet: macros/expect-send, serial/telnet, session recording playback (rest of P3).
+Wake-on-LAN skipped — it only wakes physical LAN machines, not cloud instances.
 
 ### Using it
 

@@ -449,12 +449,19 @@ function closePane(pane) {
   render();
 }
 
+const termPanes = (tab) => (tab ? tab.panes.filter((p) => p.term) : []);
+
 function render() {
-  $("#tabbar").innerHTML = tabs.map((t) => `
-    <div class="tab ${t === activeTab ? "active" : ""}" data-id="${t.id}">
+  const bcastN = termPanes(activeTab).length;
+  const bcastBtn = activeTab && bcastN >= 2
+    ? `<button id="bcast-btn" class="${activeTab.broadcast ? "on" : ""}" title="Send your typing to all ${bcastN} terminals in this tab">&#8644; broadcast${activeTab.broadcast ? " ON" : ""}</button>`
+    : "";
+  $("#tabbar").innerHTML = (tabs.map((t) => `
+    <div class="tab ${t === activeTab ? "active" : ""} ${t.broadcast ? "bcast" : ""}" data-id="${t.id}">
       <span>${esc(t.panes.map((p) => p.title).join(" | ")) || "empty"}</span>
       <button class="tab-close" data-id="${t.id}">&#10005;</button>
-    </div>`).join("") || '<span class="hint">Click a connection to open a session &middot; Ctrl-click to split</span>';
+    </div>`).join("") || '<span class="hint">Click a connection to open a session &middot; Ctrl-click to split</span>')
+    + `<span class="tabbar-spacer"></span>${bcastBtn}`;
 
   $("#tabbar").querySelectorAll(".tab").forEach((el) => {
     el.onclick = (e) => {
@@ -465,12 +472,17 @@ function render() {
   });
   $("#tabbar").querySelectorAll(".tab-close").forEach((b) =>
     b.onclick = (e) => { e.stopPropagation(); closeTab(tabs.find((t) => t.id === b.dataset.id)); });
+  const bb = $("#bcast-btn");
+  if (bb) bb.onclick = () => { activeTab.broadcast = !activeTab.broadcast; render(); };
 
   const panes = $("#panes");
   panes.innerHTML = "";
   if (activeTab) {
     panes.style.gridTemplateColumns = `repeat(${activeTab.panes.length}, minmax(0, 1fr))`;
-    activeTab.panes.forEach((p) => panes.appendChild(p.el));
+    activeTab.panes.forEach((p) => {
+      p.el.classList.toggle("broadcasting", !!activeTab.broadcast && !!p.term);
+      panes.appendChild(p.el);
+    });
     activeTab.panes.forEach((p) => p.resize && p.resize());
   }
 }
@@ -587,7 +599,13 @@ function termPane(conn) {
       : `\r\n\x1b[31mWebSocket closed before the session started (code ${ev.code}).\x1b[0m`);
   };
 
-  term.onData((d) => ws.readyState === 1 && ws.send(new TextEncoder().encode(d)));
+  term.onData((d) => {
+    const bytes = new TextEncoder().encode(d);
+    const tab = tabs.find((t) => t.panes.includes(pane));
+    // Cluster mode: your typing goes to every terminal in the tab at once.
+    const targets = tab?.broadcast ? termPanes(tab) : [pane];
+    for (const p of targets) if (p.ws?.readyState === 1) p.ws.send(bytes);
+  });
   pane.resize = () => {
     // A pane just re-attached to the DOM can measure 0; never send that.
     try { fit.fit(); } catch (e) { return; }
