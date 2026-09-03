@@ -15,12 +15,24 @@ import re
 EXPECT_TIMEOUT = 30
 
 
+# A run of 2+ spaces right before a keyword means two steps got merged onto one
+# line (a common paste-from-terminal artifact); split them back apart.
+_MERGE = re.compile(r"\s{2,}(?=(?:send!?|expect|sleep)\s)")
+
+
 def parse(script: str):
     steps = []
     for raw in script.splitlines():
-        line = raw.strip()                 # indentation is fine; steps aren't column-sensitive
-        if not line or line.startswith("#"):
-            continue
+        for line in _MERGE.split(raw):
+            line = line.strip()            # indentation is fine; steps aren't column-sensitive
+            if not line or line.startswith("#"):
+                continue
+            _parse_step(line, steps)
+    return steps
+
+
+def _parse_step(line, steps):
+    if True:
         head, _, rest = line.partition(" ")
         op = head.lower()
         if op == "send":
@@ -36,7 +48,6 @@ def parse(script: str):
                 steps.append(("send", line + "\n"))
         else:
             steps.append(("send", line + "\n"))
-    return steps
 
 
 async def run(steps, write, recent):

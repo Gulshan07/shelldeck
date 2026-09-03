@@ -185,6 +185,13 @@ def test_macro_parse():
     indented = parse("expect [#$]\n    send sudo bash\n\texpect password:")
     assert indented == [("expect", "[#$]"), ("send", "sudo bash\n"), ("expect", "password:")], indented
 
+    # steps merged onto one line by spaces (paste-from-terminal) must split back
+    merged = parse("expect [#$]        send sudo bash\nexpect mysql>   send use db;")
+    assert merged == [("expect", "[#$]"), ("send", "sudo bash\n"),
+                      ("expect", "mysql>"), ("send", "use db;\n")], merged
+    # but a normal send with internal spaces is left alone
+    assert parse("send echo  hello  world") == [("send", "echo  hello  world\n")]
+
 
 def test_macro_expect_regex():
     """expect is regex (Ásbrú-style), so a shell prompt matches; a bad pattern
