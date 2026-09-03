@@ -10,6 +10,7 @@ Anything else is treated as `send`. Blank lines and #-comments are skipped.
 Macro bodies live in the vault because they routinely hold a sudo password.
 """
 import asyncio
+import re
 
 EXPECT_TIMEOUT = 30
 
@@ -17,8 +18,8 @@ EXPECT_TIMEOUT = 30
 def parse(script: str):
     steps = []
     for raw in script.splitlines():
-        line = raw.rstrip("\n")
-        if not line.strip() or line.strip().startswith("#"):
+        line = raw.strip()                 # indentation is fine; steps aren't column-sensitive
+        if not line or line.startswith("#"):
             continue
         head, _, rest = line.partition(" ")
         op = head.lower()
@@ -53,9 +54,16 @@ async def run(steps, write, recent):
         elif op == "sleep":
             await asyncio.sleep(min(arg, 60))
         elif op == "expect":
-            target = arg.encode()
+            # Try regex first (so [#$], \\$\\s*$, etc. work like Ásbrú); if the
+            # pattern isn't valid regex, fall back to a literal substring match.
+            try:
+                rx = re.compile(arg.encode())
+                matches = lambda buf: rx.search(buf) is not None
+            except re.error:
+                needle = arg.encode()
+                matches = lambda buf: needle in buf
             deadline = asyncio.get_event_loop().time() + EXPECT_TIMEOUT
-            while target not in bytes(recent):
+            while not matches(bytes(recent)):
                 if asyncio.get_event_loop().time() > deadline:
                     raise TimeoutError(f"expected {arg!r} but it never appeared")
                 await asyncio.sleep(0.1)

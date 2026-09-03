@@ -133,8 +133,10 @@
 <dialog id="macros-dlg">
   <h2>Macros</h2>
   <p class="note">A macro types a scripted sequence into the current terminal. One step per line:
-    <code>send &lt;text&gt;</code>, <code>expect &lt;text to wait for&gt;</code>,
-    <code>sleep &lt;seconds&gt;</code>. Stored encrypted (a macro may hold a sudo password).</p>
+    <code>send &lt;text&gt;</code>, <code>expect &lt;pattern&gt;</code> (a regex, e.g.
+    <code>[#$]</code> or <code>password:</code>), <code>sleep &lt;seconds&gt;</code>. Indentation is
+    fine. Stored encrypted (a macro may hold a sudo password). Progress and any stuck
+    <code>expect</code> show up in the terminal as dim <code>[macro]</code> lines.</p>
   <div id="macros-list"></div>
   <form method="dialog" id="macro-form">
     <label>Name <input name="name" required placeholder="sudo-root"></label>

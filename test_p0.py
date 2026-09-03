@@ -180,6 +180,35 @@ def test_macro_parse():
     ], steps
     assert parse("send! y")[0] == ("send", "y"), "send! must not append a newline"
 
+    # indented steps (as pasted from an example) must still parse as steps, not
+    # get typed literally
+    indented = parse("expect [#$]\n    send sudo bash\n\texpect password:")
+    assert indented == [("expect", "[#$]"), ("send", "sudo bash\n"), ("expect", "password:")], indented
+
+
+def test_macro_expect_regex():
+    """expect is regex (Ásbrú-style), so a shell prompt matches; a bad pattern
+    falls back to literal so it never crashes."""
+    import asyncio
+    from eazyconnector.macros import run
+
+    async def go():
+        recent = bytearray(b"ubuntu@web-01:~$ ")           # a real-ish prompt
+        writes = []
+        # regex [#$] should match the trailing $ immediately, then send fires
+        it = run([("expect", "[#$]"), ("send", "ls\n")], lambda b: writes.append(b), recent)
+        statuses = [s async for s in it]
+        assert any("matched" in s for s in statuses), statuses
+        assert writes == [b"ls\n"], writes
+
+        # an invalid regex must not raise; it becomes a literal match
+        recent2 = bytearray(b"see the [bracket] here")
+        it2 = run([("expect", "[bracket")], lambda b: None, recent2)  # unbalanced [
+        got = [s async for s in it2]
+        assert any("matched" in s for s in got), got
+
+    asyncio.run(go())
+
 
 def test_parse_forward():
     from eazyconnector.server import parse_forward

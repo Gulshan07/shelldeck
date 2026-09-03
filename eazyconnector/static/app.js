@@ -762,7 +762,12 @@ function termPane(conn) {
     else if (msg.type === "error") { pane.setStatus("failed", true); term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`); }
     else if (msg.type === "hostkey") askHostKey(ws, msg);
     else if (msg.type === "need_key_sudo") askSudoKey(ws, msg, pane);
-    else if (msg.type === "macro_status") pane.setStatus(msg.message, msg.error);
+    else if (msg.type === "macro_status") {
+      pane.setStatus(msg.message, msg.error);
+      // Make macro progress visible in the terminal, so a stuck expect or a
+      // finished run is obvious rather than silent.
+      if (pane.term) pane.term.writeln(`\r\n\x1b[${msg.error ? "31" : "90"}m[macro] ${msg.message}\x1b[0m`);
+    }
   };
   ws.onclose = (ev) => {
     pane.setStatus("disconnected", true);
