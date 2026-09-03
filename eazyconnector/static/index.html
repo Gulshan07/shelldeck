@@ -146,6 +146,16 @@
 
 <dialog id="log-view">
   <h2 id="log-view-name"></h2>
+  <div class="log-view-bar">
+    <button id="log-play">&#9654; Play recording</button>
+    <label>Speed
+      <select id="log-speed"><option value="1">1&times;</option><option value="2">2&times;</option>
+        <option value="4">4&times;</option><option value="8">8&times;</option></select>
+    </label>
+    <button id="log-toggle">Show as text</button>
+    <span id="log-status" class="lmeta"></span>
+  </div>
+  <div id="log-term" hidden></div>
   <pre id="log-view-text"></pre>
   <menu><button id="log-view-close" autofocus>Close</button></menu>
 </dialog>

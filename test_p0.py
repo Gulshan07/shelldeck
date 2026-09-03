@@ -91,6 +91,13 @@ def test_session_log_encrypted_roundtrip():
     assert b"hunter2" in text and b"more output" in text, "decrypt must recover the session"
     assert b"=== prod/db-01" in text, "header written"
 
+    # timed frames for playback: monotonic non-decreasing ms, still secret-free on disk
+    frames = list(sl.read_frames(v, log.path))
+    assert len(frames) >= 3 and all(isinstance(ms, int) for ms, _ in frames)
+    ms_values = [ms for ms, _ in frames]
+    assert ms_values == sorted(ms_values), "frame timestamps must be non-decreasing"
+    assert b"hunter2" in b"".join(d for _, d in frames)
+
     # a locked vault cannot read the log back
     v.lock()
     try:

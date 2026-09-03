@@ -3,15 +3,21 @@
 A terminal log can contain anything typed on screen (a sudo password, a token),
 so it is encrypted at rest under the vault master key, not left as plaintext.
 
-Append-friendly format: repeated frames of  [4-byte big-endian length][nonce||ct].
-Each frame is one independent AES-GCM message, so we never rewrite the file.
+Append-friendly format: a 7-byte magic, then frames of
+  [4-byte length][4-byte ms-since-start][nonce||ct]
+Each frame is one independent AES-GCM message, so we never rewrite the file. The
+ms delta (plaintext metadata — timing isn't sensitive) drives recording playback.
+Files without the magic are the old untimed format and still read back as text.
 """
 import os
 import re
 import struct
+import time
 from datetime import datetime
 
 from . import platform, store
+
+MAGIC = b"ECLOG2\n"
 
 CAP_BYTES = 50 * 1024 * 1024   # ponytail: fixed 50 MB/session; make per-profile if it ever bites
 
@@ -34,12 +40,15 @@ class SessionLog:
         self.path = store.LOGS / f"{_safe(conn_name)}-{stamp}.eclog"
         fd = platform.open_private(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
         self._f = os.fdopen(fd, "wb")
+        self._f.write(MAGIC)
+        self._start = time.monotonic()
         self._frame(f"=== {conn_name} — {datetime.now().isoformat(timespec='seconds')} ===\r\n".encode())
 
     def _frame(self, data: bytes):
         try:
             blob = self.vault.encrypt(data)
-            self._f.write(struct.pack(">I", len(blob)) + blob)
+            ms = int((time.monotonic() - self._start) * 1000)
+            self._f.write(struct.pack(">II", len(blob), ms) + blob)
             self._f.flush()
         except Exception:
             self.ok = False        # vault locked or disk error: stop logging quietly
@@ -62,20 +71,31 @@ class SessionLog:
             pass
 
 
-def read_log(vault, path) -> bytes:
-    """Decrypt a whole .eclog back to the raw terminal bytes."""
-    out = bytearray()
+def read_frames(vault, path):
+    """Yield (ms, plaintext) per frame. Old untimed files replay at ms=0."""
     with open(path, "rb") as f:
+        head = f.read(len(MAGIC))
+        timed = head == MAGIC
+        if not timed:
+            f.seek(0)
         while True:
-            head = f.read(4)
-            if len(head) < 4:
+            hdr = f.read(8 if timed else 4)
+            if len(hdr) < (8 if timed else 4):
                 break
-            (n,) = struct.unpack(">I", head)
+            if timed:
+                n, ms = struct.unpack(">II", hdr)
+            else:
+                (n,) = struct.unpack(">I", hdr)
+                ms = 0
             blob = f.read(n)
             if len(blob) < n:
                 break
-            out += vault.decrypt(blob)
-    return bytes(out)
+            yield ms, vault.decrypt(blob)
+
+
+def read_log(vault, path) -> bytes:
+    """Decrypt a whole .eclog back to the raw terminal bytes (no timing)."""
+    return b"".join(data for _, data in read_frames(vault, path))
 
 
 def list_logs():

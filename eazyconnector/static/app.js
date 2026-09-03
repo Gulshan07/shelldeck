@@ -215,7 +215,70 @@ let importSource = null;
 
 $("#logs-btn").onclick = openLogs;
 $("#logs-close").onclick = () => $("#logs-dlg").close();
-$("#log-view-close").onclick = () => $("#log-view").close();
+$("#log-view-close").onclick = () => { stopPlayback(); $("#log-view").close(); };
+
+let logPlayer = null;         // { term, timer, cancelled }
+
+function stopPlayback() {
+  if (logPlayer) { logPlayer.cancelled = true; clearTimeout(logPlayer.timer); }
+  if (logPlayer?.term) { logPlayer.term.dispose(); logPlayer = null; }
+  $("#log-term").hidden = true;
+  $("#log-status").textContent = "";
+}
+
+async function openLogView(file) {
+  stopPlayback();
+  $("#log-view-name").textContent = file;
+  $("#log-view-text").hidden = false;
+  $("#log-term").hidden = true;
+  $("#log-toggle").textContent = "Show as text";
+  const r = await fetch("/api/logs/" + encodeURIComponent(file),
+    { headers: { "Authorization": "Bearer " + TOKEN } });
+  $("#log-view-text").textContent = r.ok ? await r.text() : "could not open: " + r.status;
+  $("#log-view").dataset.file = file;
+  $("#log-view").showModal();
+}
+
+$("#log-toggle").onclick = () => {
+  const showingText = !$("#log-view-text").hidden;
+  stopPlayback();
+  $("#log-view-text").hidden = showingText ? true : false;
+  $("#log-toggle").textContent = showingText ? "Show as text" : "Show as text";
+};
+
+$("#log-play").onclick = async () => {
+  const file = $("#log-view").dataset.file;
+  const speed = +$("#log-speed").value;
+  stopPlayback();
+  $("#log-view-text").hidden = true;
+  $("#log-term").hidden = false;
+  const data = await api("/api/logs/" + encodeURIComponent(file) + "/frames");
+  const frames = data.frames.map(([ms, b64]) =>
+    [ms, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]);
+  const term = new Terminal(termOptions());
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open($("#log-term"));
+  try { fit.fit(); } catch {}
+  const player = { term, cancelled: false, timer: null };
+  logPlayer = player;
+
+  let i = 0, last = 0;
+  const step = () => {
+    if (player.cancelled || i >= frames.length) {
+      if (!player.cancelled) $("#log-status").textContent = "— end of recording —";
+      return;
+    }
+    const [ms, bytes] = frames[i++];
+    term.write(bytes);
+    $("#log-status").textContent = `playing… ${i}/${frames.length}`;
+    // real gap between frames, capped at 2s so idle stretches don't stall playback
+    let gap = Math.min(2000, Math.max(0, ms - last)) / speed;
+    last = ms;
+    player.timer = setTimeout(step, gap);
+  };
+  step();
+};
 
 async function openLogs() {
   $("#logs-list").innerHTML = "Loading…";
@@ -233,13 +296,7 @@ async function openLogs() {
     </div>`).join("");
   $("#logs-list").querySelectorAll(".lrow").forEach((row) => {
     const file = row.dataset.file;
-    row.querySelector(".lopen").onclick = async () => {
-      const r = await fetch("/api/logs/" + encodeURIComponent(file),
-        { headers: { "Authorization": "Bearer " + TOKEN } });
-      $("#log-view-name").textContent = file;
-      $("#log-view-text").textContent = r.ok ? await r.text() : "could not open: " + r.status;
-      $("#log-view").showModal();
-    };
+    row.querySelector(".lopen").onclick = () => openLogView(file);
     row.querySelector(".ldel").onclick = async () => {
       if (!confirm("Delete this log?")) return;
       await api("/api/logs/" + encodeURIComponent(file), { method: "DELETE" });

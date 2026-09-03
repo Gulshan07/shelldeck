@@ -185,3 +185,8 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 .advanced summary { cursor:pointer; color:var(--muted); font-size:13px; user-select:none; }
 .advanced[open] summary { margin-bottom:8px; color:var(--fg); }
 .advanced label { margin-top:8px; }
+
+.log-view-bar { display:flex; align-items:center; gap:10px; margin:6px 0; }
+.log-view-bar button, .log-view-bar select { padding:4px 10px; font-size:13px; }
+#log-term { height:60vh; min-height:0; background:#0d0f13; border:1px solid var(--line);
+  border-radius:6px; padding:6px; overflow:hidden; }

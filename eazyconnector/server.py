@@ -327,6 +327,23 @@ async def log_get(request):
 
 
 @api
+async def log_frames(request):
+    """Timed frames for playback: [[ms, base64], ...]."""
+    if not vault.unlocked:
+        return JSONResponse({"error": "locked"}, status_code=423)
+    p = _log_path(request.path_params["name"])
+    if p is None or not p.exists():
+        return JSONResponse({"error": "no such log"}, status_code=404)
+    import base64 as _b64
+    try:
+        frames = [[ms, _b64.b64encode(data).decode()]
+                  for ms, data in session_log.read_frames(vault, p)]
+    except Exception as e:
+        return JSONResponse({"error": f"could not decrypt: {e}"}, status_code=400)
+    return JSONResponse({"frames": frames})
+
+
+@api
 async def log_delete(request):
     p = _log_path(request.path_params["name"])
     if p is None:
@@ -858,6 +875,7 @@ app = Starlette(
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
         Route("/api/logs", logs_list),
         Route("/api/logs/{name}", log_get, methods=["GET"]),
+        Route("/api/logs/{name}/frames", log_frames),
         Route("/api/logs/{name}", log_delete, methods=["DELETE"]),
         Route("/api/import/{source}/preview", import_preview, methods=["GET", "POST"]),
         Route("/api/import/{source}/commit", import_commit, methods=["POST"]),
