@@ -26,6 +26,7 @@
       <button id="import-btn" title="Import from ssh_config or Ásbrú">&#8681;</button>
       <button id="logs-btn" title="Session logs">&#128220;</button>
       <button id="prefs-btn" title="Terminal appearance">&#9881;</button>
+      <button id="macros-btn" title="Macros">&#9889;</button>
       <button id="new-btn" title="New connection">+</button>
     </div>
     <input id="filter" placeholder="Search…">
@@ -109,6 +110,21 @@
       <button value="cancel" formnovalidate>Cancel</button>
       <button value="save" id="passwd-save">Change</button>
     </menu>
+  </form>
+</dialog>
+
+<dialog id="macros-dlg">
+  <h2>Macros</h2>
+  <p class="note">A macro types a scripted sequence into the current terminal. One step per line:
+    <code>send &lt;text&gt;</code>, <code>expect &lt;text to wait for&gt;</code>,
+    <code>sleep &lt;seconds&gt;</code>. Stored encrypted (a macro may hold a sudo password).</p>
+  <div id="macros-list"></div>
+  <form method="dialog" id="macro-form">
+    <label>Name <input name="name" required placeholder="sudo-root"></label>
+    <label>Steps
+      <textarea name="body" rows="5" placeholder="send sudo -i&#10;expect password:&#10;send my-sudo-password"></textarea>
+    </label>
+    <menu><button value="cancel" formnovalidate>Close</button><button value="save">Save macro</button></menu>
   </form>
 </dialog>
 

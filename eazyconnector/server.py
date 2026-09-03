@@ -19,7 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from . import store
 from .vpn import Vpn, VpnError, detect_dialect
-from . import importers, platform, session_log
+from . import importers, macros as macro_mod, platform, session_log
 
 STATIC = Path(__file__).parent / "static"
 IDLE_LOCK_SECONDS = 15 * 60
@@ -293,6 +293,35 @@ async def import_commit(request):
     store.save_config(cfg)
     return JSONResponse({"created": created, "skipped": skipped, "keys_imported": key_read,
                          "key_failures": key_failed, "warnings": warnings})
+
+
+# --- macros --------------------------------------------------------------
+
+
+@api
+async def macros_list(request):
+    if not vault.unlocked:
+        return JSONResponse({"error": "locked"}, status_code=423)
+    store_ = vault.get("macros") or {}
+    if request.method == "GET":
+        # names + bodies; the UI needs the body to run it. It's already in the vault.
+        return JSONResponse([{"name": k, "body": v} for k, v in sorted(store_.items())])
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    store_ = dict(store_)
+    store_[name] = body.get("body", "")
+    vault.put("macros", store_)
+    return JSONResponse({"ok": True})
+
+
+@api
+async def macro_delete(request):
+    store_ = dict(vault.get("macros") or {})
+    if store_.pop(request.path_params["name"], None) is not None:
+        vault.put("macros", store_)
+    return JSONResponse({"deleted": request.path_params["name"]})
 
 
 # --- session logs --------------------------------------------------------
@@ -646,6 +675,8 @@ async def ssh_ws(ws):
 
         logger = session_log.SessionLog(vault, conn["name"]) if conn.get("log") else None
 
+        recent = bytearray()   # last chunk of output, for macro `expect` matching
+
         async def pump_out_logged():
             while not proc.stdout.at_eof():
                 data = await proc.stdout.read(65536)
@@ -653,7 +684,18 @@ async def ssh_ws(ws):
                     break
                 if logger:
                     logger.write(data)
+                recent.extend(data)
+                del recent[:-16384]      # keep only the tail
                 await ws.send_bytes(data)
+
+        async def run_macro(body):
+            try:
+                async for status in macro_mod.run(macro_mod.parse(body), proc, recent):
+                    await _say(ws, {"type": "macro_status", "message": status})
+                await _say(ws, {"type": "macro_status", "message": "macro done", "done": True})
+            except Exception as e:
+                await _say(ws, {"type": "macro_status", "message": f"macro stopped: {e}",
+                                "done": True, "error": True})
 
         out = asyncio.create_task(pump_out_logged())
         try:
@@ -675,6 +717,8 @@ async def ssh_ws(ws):
                             cols, rows = int(ctl["cols"]), int(ctl["rows"])
                             if cols > 0 and rows > 0:
                                 proc.change_terminal_size(cols, rows)
+                        elif ctl.get("type") == "macro" and ctl.get("body"):
+                            asyncio.create_task(run_macro(ctl["body"]))
                 except Exception as e:
                     print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
         finally:
@@ -873,6 +917,8 @@ app = Starlette(
         Route("/api/vault/change", vault_change, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
+        Route("/api/macros", macros_list, methods=["GET", "POST"]),
+        Route("/api/macros/{name}", macro_delete, methods=["DELETE"]),
         Route("/api/logs", logs_list),
         Route("/api/logs/{name}", log_get, methods=["GET"]),
         Route("/api/logs/{name}/frames", log_frames),

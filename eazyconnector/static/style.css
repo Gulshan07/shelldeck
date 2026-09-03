@@ -190,3 +190,15 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 .log-view-bar button, .log-view-bar select { padding:4px 10px; font-size:13px; }
 #log-term { height:60vh; min-height:0; background:#0d0f13; border:1px solid var(--line);
   border-radius:6px; padding:6px; overflow:hidden; }
+
+#macros-btn { padding:2px 9px; }
+#macros-dlg { width:min(560px,94vw); }
+#macros-list { border:1px solid var(--line); border-radius:6px; margin:8px 0; max-height:36vh; overflow:auto; }
+#macros-list .mrow { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center;
+  padding:5px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+#macros-list .mrow:last-child { border-bottom:none; }
+#macros-list button { background:none; border:1px solid var(--line); border-radius:5px; color:var(--fg);
+  padding:2px 8px; font-size:12px; }
+#macro-form { display:grid; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
+.pane-macro { background:none; border:none; color:var(--muted); padding:0 4px; cursor:pointer; }
+.pane-macro:hover { color:var(--accent); }

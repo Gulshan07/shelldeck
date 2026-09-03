@@ -168,6 +168,19 @@ def test_known_hosts_entries_actually_match():
     path.unlink()
 
 
+def test_macro_parse():
+    from eazyconnector.macros import parse
+    steps = parse("send sudo -i\nexpect password:\nsend secret\nsleep 2\n# comment\n\nbare line")
+    assert steps == [
+        ("send", "sudo -i\n"),
+        ("expect", "password:"),
+        ("send", "secret\n"),
+        ("sleep", 2.0),
+        ("send", "bare line\n"),      # anything unrecognised is treated as send
+    ], steps
+    assert parse("send! y")[0] == ("send", "y"), "send! must not append a newline"
+
+
 def test_parse_forward():
     from eazyconnector.server import parse_forward
 

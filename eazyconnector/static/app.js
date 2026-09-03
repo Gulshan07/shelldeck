@@ -581,6 +581,56 @@ function applyPrefs() {
   activeTab?.panes.forEach((p) => p.resize?.());
 }
 
+let macros = [];
+async function loadMacros() { try { macros = await api("/api/macros"); } catch { macros = []; } }
+
+$("#macros-btn").onclick = async () => {
+  await loadMacros();
+  renderMacros();
+  $("#macro-form").reset();
+  $("#macros-dlg").showModal();
+};
+function renderMacros() {
+  $("#macros-list").innerHTML = macros.length ? macros.map((m) => `
+    <div class="mrow" data-name="${esc(m.name)}">
+      <span>&#9889; ${esc(m.name)}</span>
+      <button class="medit">edit</button><button class="mdel">delete</button>
+    </div>`).join("") : '<div class="hint" style="padding:8px">No macros yet.</div>';
+  $("#macros-list").querySelectorAll(".mrow").forEach((row) => {
+    const m = macros.find((x) => x.name === row.dataset.name);
+    row.querySelector(".medit").onclick = () => {
+      $("#macro-form").name.value = m.name; $("#macro-form").body.value = m.body;
+    };
+    row.querySelector(".mdel").onclick = async () => {
+      if (!confirm(`Delete macro "${m.name}"?`)) return;
+      await api("/api/macros/" + encodeURIComponent(m.name), { method: "DELETE" });
+      await loadMacros(); renderMacros();
+    };
+  });
+}
+$("#macros-dlg").onclose = async () => {
+  if ($("#macros-dlg").returnValue !== "save") return;
+  const f = $("#macro-form");
+  if (!f.name.value.trim()) return;
+  await api("/api/macros", { method: "POST",
+    body: JSON.stringify({ name: f.name.value.trim(), body: f.body.value }) });
+  await loadMacros();
+};
+
+// Pick a macro and run it in a terminal pane (broadcasts if the tab is in cluster mode).
+async function runMacroOn(pane) {
+  await loadMacros();
+  if (!macros.length) { alert('No macros yet — add one with the ⚡ button.'); return; }
+  const name = prompt("Run which macro?\n\n" + macros.map((m) => "• " + m.name).join("\n"));
+  if (!name) return;
+  const m = macros.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+  if (!m) { alert("No macro named " + name); return; }
+  const tab = tabs.find((t) => t.panes.includes(pane));
+  const targets = tab?.broadcast ? termPanes(tab) : [pane];
+  for (const p of targets) if (p.ws?.readyState === 1)
+    p.ws.send(JSON.stringify({ type: "macro", body: m.body }));
+}
+
 $("#prefs-btn").onclick = () => {
   const f = $("#prefs-form");
   f.theme.value = termPrefs.theme; f.fontSize.value = termPrefs.fontSize;
@@ -636,6 +686,10 @@ function openGroup(gval) {
 
 function termPane(conn) {
   const pane = makePane(conn, conn.name);
+  const mbtn = document.createElement("button");
+  mbtn.className = "pane-macro"; mbtn.textContent = "\u26a1"; mbtn.title = "Run a macro";
+  mbtn.onclick = () => runMacroOn(pane);
+  pane.el.querySelector(".pane-head").insertBefore(mbtn, pane.el.querySelector(".pane-close"));
   const term = new Terminal(termOptions());
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
@@ -666,6 +720,7 @@ function termPane(conn) {
     else if (msg.type === "error") { pane.setStatus("failed", true); term.writeln(`\r\n\x1b[31m${msg.message}\x1b[0m`); }
     else if (msg.type === "hostkey") askHostKey(ws, msg);
     else if (msg.type === "need_key_sudo") askSudoKey(ws, msg, pane);
+    else if (msg.type === "macro_status") pane.setStatus(msg.message, msg.error);
   };
   ws.onclose = (ev) => {
     pane.setStatus("disconnected", true);

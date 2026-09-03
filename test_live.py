@@ -202,6 +202,39 @@ async def main():
         assert saw_local, "local_before output should reach the terminal"
         assert saw_remote, "remote_command should auto-run after login"
     print("ok  local pre-command runs and remote command auto-runs after login")
+    # macros: store one, run it in a session, expect matches, follow-up sends
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as h2:
+        await h2.post("/api/macros", json={"name": "greet",
+            "body": "send hello-macro\nexpect you said: hello-macro\nsend after-expect"})
+        assert any(m["name"] == "greet" for m in (await h2.get("/api/macros")).json())
+        mr = await h2.post("/api/connections", json={
+            "name": "macrotarget", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,
+            "user": "u", "auth": "password", "password": PW})
+        mtid = mr.json()["id"]
+    async with websockets.connect(f"ws://127.0.0.1:{port}/ws/ssh",
+                                  additional_headers={"Origin": origin}) as ws:
+        await ws.send(json.dumps({"token": server.TOKEN, "id": mtid, "cols": 80, "rows": 24}))
+        m = json.loads(await ws.recv())
+        if m["type"] == "hostkey":
+            await ws.send(json.dumps({"accept": True})); m = json.loads(await ws.recv())
+        assert m["type"] == "ready", m
+        await ws.send(json.dumps({"type": "macro",
+            "body": "send hello-macro\nexpect you said: hello-macro\nsend after-expect"}))
+        saw_first = saw_second = macro_done = False
+        for _ in range(80):
+            msg = await asyncio.wait_for(ws.recv(), timeout=10)
+            if isinstance(msg, bytes):
+                if b"you said: hello-macro" in msg: saw_first = True
+                if b"you said: after-expect" in msg: saw_second = True
+            else:
+                if json.loads(msg).get("type") == "macro_status" and json.loads(msg).get("done"):
+                    macro_done = True
+            if saw_second and macro_done: break
+        assert saw_first, "macro's first send did not run"
+        assert saw_second, "macro did not continue after the expect matched"
+        assert macro_done, "macro never reported done"
+    print("ok  macro ran: send, expect matched, follow-up send")
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as http:
 
