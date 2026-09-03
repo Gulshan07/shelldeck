@@ -438,6 +438,7 @@ function closeTab(tab) { tab.panes.slice().forEach(closePane); }
 
 function closePane(pane) {
   if (pane.ws) pane.ws.close();
+  if (pane.term) { liveTerms.delete(pane.term); pane.term.dispose(); }
   const tab = tabs.find((t) => t.panes.includes(pane));
   if (!tab) return;
   tab.panes.splice(tab.panes.indexOf(pane), 1);
@@ -474,6 +475,52 @@ function render() {
   }
 }
 
+// --- terminal appearance ------------------------------------------------
+
+const THEMES = {
+  eazy:      { background: "#111318", foreground: "#d8dbe2", cursor: "#5aa9e6" },
+  black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
+  solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
+  light:     { background: "#fdf6e3", foreground: "#3b4045", cursor: "#268bd2" },
+};
+
+function loadPrefs() {
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem("termPrefs")) || {}; } catch {}
+  return { theme: p.theme || "eazy", fontSize: p.fontSize || 13,
+           fontFamily: p.fontFamily || "ui-monospace, monospace" };
+}
+let termPrefs = loadPrefs();
+
+function termOptions() {
+  return { fontSize: +termPrefs.fontSize, fontFamily: termPrefs.fontFamily,
+           cursorBlink: true, theme: THEMES[termPrefs.theme] || THEMES.eazy };
+}
+
+const liveTerms = new Set();
+
+function applyPrefs() {
+  for (const t of liveTerms) {
+    t.options.fontSize = +termPrefs.fontSize;
+    t.options.fontFamily = termPrefs.fontFamily;
+    t.options.theme = THEMES[termPrefs.theme] || THEMES.eazy;
+  }
+  activeTab?.panes.forEach((p) => p.resize?.());
+}
+
+$("#prefs-btn").onclick = () => {
+  const f = $("#prefs-form");
+  f.theme.value = termPrefs.theme; f.fontSize.value = termPrefs.fontSize;
+  f.fontFamily.value = termPrefs.fontFamily;
+  $("#prefs-dlg").showModal();
+};
+$("#prefs-form").oninput = () => {
+  const f = $("#prefs-form");
+  termPrefs = { theme: f.theme.value, fontSize: f.fontSize.value, fontFamily: f.fontFamily.value };
+  try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
+  applyPrefs();
+};
+
 // --- panes --------------------------------------------------------------
 
 function makePane(conn, title) {
@@ -503,10 +550,12 @@ function openSession(cid, kind, split) {
 
 function termPane(conn) {
   const pane = makePane(conn, conn.name);
-  const term = new Terminal({ fontSize: 13, cursorBlink: true, theme: { background: "#111318" } });
+  const term = new Terminal(termOptions());
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
   term.open(pane.body);
+  liveTerms.add(term);
+  pane.term = term;
 
   const ws = new WebSocket(`ws://${location.host}/ws/ssh`);
   ws.binaryType = "arraybuffer";

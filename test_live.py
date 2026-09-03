@@ -178,6 +178,33 @@ async def main():
         await http.delete(f"/api/connections/{kid}")
         print("ok  editing a key connection without re-entering the PEM keeps the key")
 
+        # pre/post commands: local_before output appears, remote_command auto-runs after login
+        rc = await http.post("/api/connections", json={
+            "name": "cmds", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,
+            "user": "u", "auth": "password", "password": PW, "keepalive": 15,
+            "local_before": "echo LOCAL_BEFORE_MARKER",
+            "remote_command": "auto-remote-cmd"})
+        ccid = rc.json()["id"]
+        assert rc.json()["keepalive"] == 15
+    async with websockets.connect(f"ws://127.0.0.1:{port}/ws/ssh",
+                                  additional_headers={"Origin": origin}) as ws:
+        await ws.send(json.dumps({"token": server.TOKEN, "id": ccid, "cols": 80, "rows": 24}))
+        saw_local = saw_remote = False
+        for _ in range(40):
+            m = await ws.recv()
+            if isinstance(m, bytes):
+                if b"LOCAL_BEFORE_MARKER" in m: saw_local = True
+                if b"auto-remote-cmd" in m: saw_remote = True   # sshd echoes it back
+                if saw_local and saw_remote: break
+            else:
+                d = json.loads(m)
+                if d.get("type") == "hostkey": await ws.send(json.dumps({"accept": True}))
+        assert saw_local, "local_before output should reach the terminal"
+        assert saw_remote, "remote_command should auto-run after login"
+    print("ok  local pre-command runs and remote command auto-runs after login")
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as http:
+
         # session logging: a logged terminal session is encrypted, listed, and read back
         rl = await http.post("/api/connections", json={
             "name": "logged", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,

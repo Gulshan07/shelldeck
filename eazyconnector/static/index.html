@@ -25,6 +25,7 @@
       <button id="help-btn" title="Help (F1)">?</button>
       <button id="import-btn" title="Import from ssh_config or Ásbrú">&#8681;</button>
       <button id="logs-btn" title="Session logs">&#128220;</button>
+      <button id="prefs-btn" title="Terminal appearance">&#9881;</button>
       <button id="new-btn" title="New connection">+</button>
     </div>
     <input id="filter" placeholder="Search…">
@@ -74,6 +75,18 @@
     <label class="check"><input type="checkbox" name="log"> Record an encrypted session log
       <span class="note">captures everything on screen, incl. anything typed; encrypted with your vault</span>
     </label>
+    <details class="advanced"><summary>Advanced</summary>
+      <label>Keepalive seconds <input name="keepalive" type="number" value="30" min="0"></label>
+      <label>Run locally before connecting
+        <input name="local_before" placeholder="e.g. aws sso login">
+      </label>
+      <label>Run on the server after login
+        <input name="remote_command" placeholder="e.g. cd /var/www &amp;&amp; tail -f app.log">
+      </label>
+      <label>Run locally after disconnecting
+        <input name="local_after" placeholder="e.g. echo done">
+      </label>
+    </details>
     <p class="note">Secrets are encrypted into the vault. Nothing is stored in plain config.</p>
     <menu>
       <button value="cancel" formnovalidate>Cancel</button>
@@ -95,6 +108,30 @@
       <button value="cancel" formnovalidate>Cancel</button>
       <button value="save" id="passwd-save">Change</button>
     </menu>
+  </form>
+</dialog>
+
+<dialog id="prefs-dlg">
+  <form method="dialog" id="prefs-form">
+    <h2>Terminal appearance</h2>
+    <label>Theme
+      <select name="theme">
+        <option value="eazy">EazyConnector (dark)</option>
+        <option value="black">Black</option>
+        <option value="solarized">Solarized Dark</option>
+        <option value="light">Light</option>
+      </select>
+    </label>
+    <label>Font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
+    <label>Font family
+      <select name="fontFamily">
+        <option value="ui-monospace, monospace">System monospace</option>
+        <option value="'Courier New', monospace">Courier</option>
+        <option value="monospace">Plain monospace</option>
+      </select>
+    </label>
+    <p class="note">Applies to open and new terminals. Saved in this browser.</p>
+    <menu><button value="ok" autofocus>Done</button></menu>
   </form>
 </dialog>
 
@@ -203,6 +240,7 @@
       <tr><td><kbd>Ctrl</kbd> + <b>click</b></td><td>splits it into the current tab, side by side</td></tr>
       <tr><td>&#128449; icon on a row</td><td>opens an SFTP file browser (<kbd>Ctrl</kbd>-click to split it)</td></tr>
       <tr><td>&#128220; top of the sidebar</td><td>view/download/delete encrypted session logs</td></tr>
+      <tr><td>&#9881; top of the sidebar</td><td>terminal theme, font size and family (saved per browser)</td></tr>
       <tr><td>&#9998; / &#10005; icons</td><td>edit or delete a connection</td></tr>
       <tr><td><b>drag</b> a connection onto a group</td><td>moves it into that group</td></tr>
       <tr><td><b>click</b> a group header</td><td>collapse or expand it (remembered per browser)</td></tr>
@@ -271,6 +309,8 @@ D 1080                  SOCKS5 proxy on local 1080</pre>
         .ovpn means SCRV1, otherwise the code is appended to the password. Override it if needed.</td></tr>
       <tr><td>Expired code</td><td>if the server re-challenges, a fresh code is sent automatically</td></tr>
       <tr><td>&#9776; button</td><td>shows the openvpn log for this profile</td></tr>
+      <tr><td>Advanced (in the editor)</td><td>run a local command before connecting, a command on the
+        server after login, and a local command after disconnecting; set the keepalive interval</td></tr>
       <tr><td>root</td><td>openvpn needs it. Store your sudo password in the profile, or set up
         sudoers. Nothing is cached anywhere else.</td></tr>
     </table>

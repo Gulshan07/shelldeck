@@ -128,6 +128,10 @@ async def connections(request):
         "forwards": [l.strip() for l in (body.get("forwards") or "").splitlines() if l.strip()],
         "key_path": body.get("key_path", ""),
         "log": bool(body.get("log")),
+        "keepalive": int(body.get("keepalive") or 30),
+        "local_before": (body.get("local_before") or "").strip(),
+        "remote_command": (body.get("remote_command") or "").strip(),
+        "local_after": (body.get("local_after") or "").strip(),
     }
     for rule in conn["forwards"]:
         try:
@@ -528,7 +532,8 @@ async def _connect(conn, cid, ws, tunnel=None):
     secrets_ = vault.get(cid)
     kwargs = dict(
         host=conn["host"], port=conn["port"], username=conn["user"],
-        known_hosts=str(store.KNOWN_HOSTS), keepalive_interval=30, tunnel=tunnel,
+        known_hosts=str(store.KNOWN_HOSTS),
+        keepalive_interval=int(conn.get("keepalive") or 30), tunnel=tunnel,
     )
     if conn["auth"] == "key":
         if not secrets_.get("key_pem"):
@@ -563,6 +568,31 @@ async def _connect(conn, cid, ws, tunnel=None):
         return await asyncssh.connect(**kwargs)
 
 
+async def _run_local(cmd, ws, label):
+    """Run a local command (the user's own, from their 0600 config) and stream
+    its output into the terminal as dim text. Best-effort, 60s cap."""
+    await _say_bytes_line(ws, f"\x1b[90m$ {cmd}\x1b[0m")
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd, cwd=str(store.HOME), stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT)
+        out, _ = await asyncio.wait_for(proc.communicate(), 60)
+        if out:
+            with contextlib.suppress(Exception):
+                await ws.send_bytes(out.replace(b"\n", b"\r\n"))
+        if proc.returncode:
+            await _say_bytes_line(ws, f"\x1b[33m{label} exited {proc.returncode}\x1b[0m")
+    except asyncio.TimeoutError:
+        await _say_bytes_line(ws, f"\x1b[33m{label} timed out after 60s\x1b[0m")
+    except Exception as e:
+        await _say_bytes_line(ws, f"\x1b[33m{label}: {e}\x1b[0m")
+
+
+async def _say_bytes_line(ws, text):
+    with contextlib.suppress(Exception):
+        await ws.send_bytes((text + "\r\n").encode())
+
+
 async def ssh_ws(ws):
     conn, first = await _ws_session(ws)
     if conn is None:
@@ -570,6 +600,8 @@ async def ssh_ws(ws):
     cid = first["id"]
 
     async with contextlib.AsyncExitStack() as stack:
+        if conn.get("local_before"):
+            await _run_local(conn["local_before"], ws, "pre-connect command")
         try:
             client = await _open_chain(cid, ws, stack)
         except Exception as e:
@@ -590,6 +622,10 @@ async def ssh_ws(ws):
             fwd = []
             await _say(ws, {"type": "warn", "message": f"port forwarding: {e}"})
         await _say(ws, {"type": "ready", "forwards": fwd})
+
+        if conn.get("remote_command"):
+            # Auto-run after login, as if typed. Newline submits it.
+            proc.stdin.write((conn["remote_command"] + "\n").encode())
 
         logger = session_log.SessionLog(vault, conn["name"]) if conn.get("log") else None
 
@@ -629,6 +665,8 @@ async def ssh_ws(ws):
             if logger:
                 logger.close()
             proc.close()
+            if conn.get("local_after"):
+                await _run_local(conn["local_after"], ws, "post-disconnect command")
 
 
 # --- sftp ----------------------------------------------------------------

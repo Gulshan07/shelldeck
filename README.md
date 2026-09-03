@@ -74,8 +74,13 @@ password or token, so it is never written in the clear. The 📜 button lists,
 views (decrypted in memory) and deletes logs; they live in
 `~/.eazyconnector/logs/*.eclog`, capped at 50 MB per session.
 
-Not yet: keepalive/WOL, pre/post-connect commands, themes;
-clusters, macros, serial/telnet (P3).
+Per-connection **Advanced** options (in the editor): a local command run
+before connecting, a command run on the server right after login, a local
+command after disconnecting, and the keepalive interval. Terminal **theme,
+font size and family** are set via the gear button and saved per browser.
+
+Not yet: clusters, macros, serial/telnet (P3). Wake-on-LAN skipped —
+it only wakes physical LAN machines, not cloud instances.
 
 ### Using it
 

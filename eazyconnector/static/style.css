@@ -165,3 +165,8 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 #log-view { width:min(900px,95vw); max-height:88vh; overflow:auto; }
 #log-view-text { background:#0d0f13; border:1px solid var(--line); border-radius:6px; padding:10px;
   font:12px ui-monospace, monospace; white-space:pre-wrap; max-height:70vh; overflow:auto; }
+
+.advanced { border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+.advanced summary { cursor:pointer; color:var(--muted); font-size:13px; user-select:none; }
+.advanced[open] summary { margin-bottom:8px; color:var(--fg); }
+.advanced label { margin-top:8px; }
