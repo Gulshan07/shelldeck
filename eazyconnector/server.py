@@ -132,6 +132,8 @@ async def connections(request):
         "local_before": (body.get("local_before") or "").strip(),
         "remote_command": (body.get("remote_command") or "").strip(),
         "local_after": (body.get("local_after") or "").strip(),
+        "macros": [m for m in (body.get("macros") or []) if m],
+        "autorun_macro": body.get("autorun_macro") or "",
         "proto": body.get("proto") or "ssh",
         "serial_device": (body.get("serial_device") or "").strip(),
         "baud": int(body.get("baud") or 115200),
@@ -817,6 +819,11 @@ async def ssh_ws(ws):
                                 "done": True, "error": True})
 
         out = asyncio.create_task(pump_out_logged())
+
+        if conn.get("autorun_macro"):
+            body = (vault.get("macros") or {}).get(conn["autorun_macro"])
+            if body:
+                asyncio.create_task(run_macro(body))
         try:
             while True:
                 try:

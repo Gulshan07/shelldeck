@@ -86,6 +86,14 @@
     <label class="check"><input type="checkbox" name="log"> Record an encrypted session log
       <span class="note">captures everything on screen, incl. anything typed; encrypted with your vault</span>
     </label>
+    <details class="macros-attach"><summary>Macros for this connection</summary>
+      <p class="note">Tick macros to attach to this server; pick one to run automatically on connect
+        (e.g. log into mysql). Manage macro bodies with the &#9889; button in the sidebar.</p>
+      <div id="attach-list"></div>
+      <label>Run on connect
+        <select name="autorun_macro"><option value="">— none —</option></select>
+      </label>
+    </details>
     <details class="advanced"><summary>Advanced</summary>
       <label>Keepalive seconds <input name="keepalive" type="number" value="30" min="0"></label>
       <label>Run locally before connecting
@@ -318,6 +326,10 @@
 
   <section>
     <h3>6. Broadcast to many servers (clusters)</h3>
+    <p><b>Attach macros to a server:</b> in a connection's editor, open "Macros for this connection",
+    tick the macros it should offer, and optionally pick one to <b>run on connect</b> — so opening
+    that server can log you straight into mysql, sudo to root, etc. (like Ásbrú's Expect &amp;
+    Execute). A server's own macros are what its &#9889; button lists.</p>
     <p>Fastest way: hover a group header and click <b>&#9707;</b> to open <b>every server in that
     group</b> side by side in one tab. (Or open them yourself with <kbd>Ctrl</kbd>-click.) Then click
     <b>&#8644; broadcast</b> in the tab bar — now what you type goes to <b>every</b> terminal in that

@@ -235,6 +235,35 @@ async def main():
         assert saw_second, "macro did not continue after the expect matched"
         assert macro_done, "macro never reported done"
     print("ok  macro ran: send, expect matched, follow-up send")
+    # a macro attached to a connection auto-runs on connect
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as h3:
+        await h3.post("/api/macros", json={"name": "auto-login",
+            "body": "send auto-on-connect\nexpect you said: auto-on-connect\nsend then-this"})
+        r = await h3.post("/api/connections", json={
+            "name": "autorun", "group": "g", "host": "127.0.0.1", "port": SSHD_PORT,
+            "user": "u", "auth": "password", "password": PW,
+            "macros": ["auto-login"], "autorun_macro": "auto-login"})
+        arid = r.json()["id"]
+        assert r.json()["macros"] == ["auto-login"] and r.json()["autorun_macro"] == "auto-login"
+    async with websockets.connect(f"ws://127.0.0.1:{port}/ws/ssh",
+                                  additional_headers={"Origin": origin}) as ws:
+        await ws.send(json.dumps({"token": server.TOKEN, "id": arid, "cols": 80, "rows": 24}))
+        m = json.loads(await ws.recv())
+        if m["type"] == "hostkey":
+            await ws.send(json.dumps({"accept": True})); m = json.loads(await ws.recv())
+        assert m["type"] == "ready", m
+        # no manual macro send: it should run itself after login
+        saw_first = saw_second = False
+        for _ in range(80):
+            msg = await asyncio.wait_for(ws.recv(), timeout=10)
+            if isinstance(msg, bytes):
+                if b"you said: auto-on-connect" in msg: saw_first = True
+                if b"you said: then-this" in msg: saw_second = True
+            if saw_first and saw_second: break
+        assert saw_first, "attached macro did not auto-run on connect"
+        assert saw_second, "auto-run macro did not continue past the expect"
+    print("ok  attached macro auto-runs on connect (login automation)")
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as http:
 

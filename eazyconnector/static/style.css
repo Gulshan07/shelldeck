@@ -202,3 +202,11 @@ kbd { background:var(--bg); border:1px solid var(--line); border-bottom-width:2p
 #macro-form { display:grid; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
 .pane-macro { background:none; border:none; color:var(--muted); padding:0 4px; cursor:pointer; }
 .pane-macro:hover { color:var(--accent); }
+
+.macros-attach { border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+.macros-attach summary { cursor:pointer; color:var(--muted); font-size:13px; }
+.macros-attach[open] summary { color:var(--fg); margin-bottom:8px; }
+#attach-list { display:grid; gap:4px; margin:6px 0; }
+#attach-list label { flex-direction:row; align-items:center; gap:8px; color:var(--fg); }
+#attach-list input { width:auto; }
+#attach-list .hint { padding:2px 0; }

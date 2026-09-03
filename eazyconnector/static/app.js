@@ -198,7 +198,33 @@ function openEditor(conn) {
     else f[k].value = Array.isArray(v) ? v.join("\n") : v;
   }
   syncProtoFields();
+  populateAttachMacros(conn);
   $("#editor").showModal();
+}
+
+// Attach macros to this connection: checkboxes drive which appear on its ⚡ menu,
+// and the "run on connect" dropdown is filled from whatever is ticked.
+async function populateAttachMacros(conn) {
+  await loadMacros();
+  const list = $("#attach-list");
+  const attached = new Set((conn && conn.macros) || []);
+  if (!macros.length) {
+    list.innerHTML = '<div class="hint">No macros yet — create one with the ⚡ button first.</div>';
+  } else {
+    list.innerHTML = macros.map((m) =>
+      `<label><input type="checkbox" class="attach-cb" value="${esc(m.name)}" ${
+        attached.has(m.name) ? "checked" : ""}> ⚡ ${esc(m.name)}</label>`).join("");
+  }
+  const cur = (conn && conn.autorun_macro) || "";
+  const refreshAutorun = () => {
+    const checked = [...list.querySelectorAll(".attach-cb:checked")].map((c) => c.value);
+    const sel = $("#conn-form").autorun_macro;
+    sel.innerHTML = '<option value="">— none —</option>' +
+      checked.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    sel.value = checked.includes(cur) ? cur : "";
+  };
+  list.querySelectorAll(".attach-cb").forEach((cb) => cb.onchange = refreshAutorun);
+  refreshAutorun();
 }
 
 function syncAuthFields() {
@@ -393,6 +419,7 @@ $("#editor").onclose = async () => {
   const body = Object.fromEntries(new FormData($("#conn-form")));
   delete body.keyfile;
   body.log = $("#conn-form").log.checked;
+  body.macros = [...$("#attach-list").querySelectorAll(".attach-cb:checked")].map((c) => c.value);
   try {
     await api("/api/connections", { method: "POST", body: JSON.stringify(body) });
     loadTree();
@@ -633,9 +660,12 @@ $("#macros-dlg").onclose = async () => {
 async function runMacroOn(pane) {
   await loadMacros();
   if (!macros.length) { alert('No macros yet — add one with the ⚡ button.'); return; }
-  const name = prompt("Run which macro?\n\n" + macros.map((m) => "• " + m.name).join("\n"));
+  // Prefer the macros attached to this connection; fall back to all of them.
+  const attached = new Set(pane.conn.macros || []);
+  const choices = attached.size ? macros.filter((m) => attached.has(m.name)) : macros;
+  const name = prompt("Run which macro?\n\n" + choices.map((m) => "• " + m.name).join("\n"));
   if (!name) return;
-  const m = macros.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+  const m = choices.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
   if (!m) { alert("No macro named " + name); return; }
   const tab = tabs.find((t) => t.panes.includes(pane));
   const targets = tab?.broadcast ? termPanes(tab) : [pane];
