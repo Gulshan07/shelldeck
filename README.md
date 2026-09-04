@@ -1,126 +1,192 @@
 # EazyConnector
 
-Ásbrú-style connection manager that runs anywhere Python runs. Local web server,
-browser UI, encrypted vault. See [PLAN.md](PLAN.md) for the roadmap.
+A connection manager for people who live in terminals — SSH, SFTP, Telnet and
+serial consoles, an encrypted local vault, and one-click VPN with automatic
+two-factor. It runs as a small local server and uses your browser as the UI, so
+the same build works on any machine that runs Python.
 
-## Run
+![EazyConnector](docs/screenshot.png)
+
+*Two servers open side by side with **broadcast** on — one `uptime`, both hosts.*
+
+---
+
+## Why it exists
+
+[Ásbrú Connection Manager](https://asbru-cm.net/) is excellent, and this project
+is openly modelled on it. Three things pushed me to build something else:
+
+- **It's effectively Linux-only.** Perl + GTK is hard to move to macOS or a
+  colleague's Windows laptop. EazyConnector is one Python codebase with a
+  browser UI, and ships as a single self-contained binary.
+- **Saved passwords weren't really encrypted.** Ásbrú's default is a *hardcoded*
+  cipher key, so anyone who can read `asbru.yml` can recover every stored
+  password. EazyConnector encrypts everything under a master password only you
+  know — scrypt + AES-256-GCM — and nothing sensitive is ever written in plain
+  text.
+- **Nothing did the VPN dance for me.** Connecting meant typing a password plus
+  a 6-digit code, every time. Here it's one click: the code is generated and
+  answered over OpenVPN's management interface.
+
+It was built for a shared, multi-user Linux box, which shaped the whole security
+model below.
+
+## Features
+
+**Sessions**
+- SSH, **Telnet** and **serial console** connections in one place
+- Tabs and split panes, with a real terminal (xterm.js)
+- **Jump hosts / bastions**, chained to any depth, host key verified at every hop
+- **Port forwarding** — local, remote and SOCKS (`L` / `R` / `D`), started and
+  torn down with the session
+- **SFTP browser** — navigate, upload, download, and search the remote host
+
+**Automation**
+- **Clusters** — broadcast your typing to every terminal in a tab; run one
+  command across a fleet
+- **Macros** — `expect` / `send` scripts, attachable per connection and able to
+  run automatically on connect (log straight into MySQL, `sudo` to root…)
+- Run a command locally before connecting, on the server after login, and
+  locally after disconnecting
+
+**Records**
+- **Encrypted session logs**, opt-in per connection
+- **Recording playback** — replay a session at its original timing, 1×–8×
+
+**Networking**
+- **One-click OpenVPN** with password + TOTP answered for you; supports all
+  three second-factor dialects (`static-challenge`/SCRV1, appended, and dynamic
+  `CRV1` challenge)
+
+**Getting your servers in and out**
+- **Import** from `~/.ssh/config` or Ásbrú — grouped, with jump hosts linked
+- **Export** a secret-free bundle to share your setup with teammates
+- Groups with drag-to-organise, collapse, and search
+
+**The UI**
+- Light and dark, fully keyboard-navigable, with a built-in manual (<kbd>F1</kbd>)
+
+## Install
+
+### Linux — download and run
+
+Grab `EazyConnector-x86_64.AppImage` from the
+[releases](../../releases), then:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -e .
+chmod +x EazyConnector-x86_64.AppImage
+./EazyConnector-x86_64.AppImage
+```
+
+No Python, no dependencies. If it fails with `libfuse.so.2: cannot open`,
+either `sudo apt install libfuse2` or run it with
+`--appimage-extract-and-run`.
+
+### From source
+
+Requires Python 3.10+.
+
+```bash
+git clone https://github.com/Gulshan07/EazyConnector.git
+cd EazyConnector
+python3 -m venv .venv
+.venv/bin/pip install -e .
 .venv/bin/eazyconnector
 ```
 
-It prints a URL and opens your browser. First launch asks you to create a master
-password; that password is the only thing that decrypts your secrets.
+Optional extras: `.venv/bin/pip install -e ".[import]"` for Ásbrú import
+(PyYAML), `".[serial]"` for serial consoles (pyserial-asyncio).
 
-## Where things live
-
-```
-~/.eazyconnector/     (0700)
-  config.json  (0600)  hosts, ports, groups — no secrets, safe to sync/diff
-  vault.enc    (0600)  AES-256-GCM: passwords, private keys, passphrases
-  known_hosts  (0600)  pinned SSH host keys
-  url          (0600)  current session URL, incl. token
-```
-
-## Security notes
-
-- Binds `127.0.0.1` on an ephemeral port. There is no flag to bind elsewhere.
-- The session token is in the URL **fragment**, so the browser never sends it to
-  the server and it stays out of logs. It is never passed on the command line
-  (`/proc/<pid>/cmdline` is world-readable on a shared machine).
-- Every request checks `Origin`; the WebSocket takes its token as the first
-  message. Blocks CSRF and DNS rebinding from other pages in your browser.
-- Secrets never reach the browser. The UI asks for "connect to host X"; the
-  server does the authentication.
-- Vault: `scrypt(n=2^17)` → AES-256-GCM. Auto-locks after 15 minutes idle.
-- Unknown SSH host keys prompt with a fingerprint before trusting, at every hop
-  of a jump-host chain. Verification is never disabled.
-
-## Status: P1 + P2
-
-Working: vault, connection tree, SSH terminals in tabs, split panes, jump
-hosts / chained connections, port forwarding (L/R/D), SFTP browse with
-upload and download, TOFU host-key pinning, idle auto-lock.
-
-One-click OpenVPN with automatic password + TOTP is in: add a profile, press
-connect. The second factor dialect is auto-detected from the `.ovpn`
-(`static-challenge` → SCRV1, otherwise appended), and a dynamic `CRV1`
-re-challenge is answered with a fresh code. The profile, private key included,
-is stored encrypted in the vault and written to `~/.eazyconnector/run/` at
-`0600` only while the tunnel is up, then deleted.
-
-openvpn needs root: store a sudo password in the profile, or set
-`EAZY_OPENVPN_NO_SUDO=1` if your openvpn already has the privileges it needs.
-
-Import from `~/.ssh/config` and Ásbrú (`asbru.yml`) is in — the ↓ button in the
-sidebar previews what will be created (grouped, jump links resolved, key files
-noted) before you commit. Structure, hosts and key-file paths only; saved
-passwords are never read. Duplicates (same host, user, port) are skipped, so
-re-importing is safe.
-
-A key file owned by root (unreadable by the app) is handled at connect time:
-EazyConnector asks for your sudo password once, reads the key with `sudo cat`,
-caches it in the vault, and never asks again. The sudo password is used
-immediately and never stored — the alternative is `sudo chown` on the file.
-
-The master password can be changed in place (button by Lock vault): the vault
-is re-encrypted under a new password with a fresh salt, open sessions keep
-running, and the old password stops working.
-
-Session logging is opt-in per connection (a checkbox in the editor) and
-**encrypted at rest** with your vault — a terminal log can contain a sudo
-password or token, so it is never written in the clear. The 📜 button lists,
-views (decrypted in memory) and deletes logs; they live in
-`~/.eazyconnector/logs/*.eclog`, capped at 50 MB per session.
-
-Per-connection **Advanced** options (in the editor): a local command run
-before connecting, a command run on the server right after login, a local
-command after disconnecting, and the keepalive interval. Terminal **theme,
-font size and family** are set via the gear button and saved per browser.
-
-**Share a setup with your team:** Import → *Export…* writes a JSON file with
-your connections, groups, jump links and port-forward rules and **no** secrets
-(no passwords, keys, passphrases, TOTP secrets, VPN profiles or macro bodies —
-only key-file paths, so the recipient knows which key each host needs). They
-import it via Import → *Shared file*: jump hosts are re-linked by name against
-their own ids, duplicates are skipped, and re-importing is idempotent.
-
-Clusters: open several servers as split panes in one tab, click **⇄ broadcast**,
-and your typing goes to every terminal at once — run one command across a fleet.
-
-Recording playback (replay a session log at real speed), macros (scripted
-send/expect, run per-terminal or across a broadcast cluster), and Telnet +
-Serial console access are in. Serial needs `pip install pyserial-asyncio`.
-
-Wake-on-LAN skipped — it only wakes physical LAN machines, not cloud instances.
-
-### Using it
-
-- Click a connection to open it in a new tab; **Ctrl-click** to split it into
-  the current tab beside what is already there.
-- The folder icon on a row opens an SFTP pane (Ctrl-click to split it too).
-- Ctrl-Shift-PageUp / PageDown switch tabs.
-- **F1** (or the `?` button) opens the built-in manual: shortcuts, forwarding
-  syntax, jump hosts, and what the security guarantees actually are.
-- In an SFTP pane, type in the filter box to narrow the current folder; press
-  **Enter** to search the server recursively below it. Sizes are shown for both.
-- Port forwarding rules go in the connection editor, one per line:
-  `L 8080:localhost:80`, `R 9090:localhost:22`, `D 1080`. They start with the
-  session and stop when its pane closes. Local and SOCKS listeners bind
-  `127.0.0.1` only — on a shared machine `0.0.0.0` would hand the tunnel to
-  every other user on the box.
-
-## Tests
+### Build your own binary
 
 ```bash
-.venv/bin/python test_p0.py    # vault crypto, file modes, origin guard
-.venv/bin/python test_e2e.py   # full stack against an in-process sshd
-.venv/bin/python test_live.py  # real uvicorn + real WebSocket handshake
-.venv/bin/python test_vpn.py   # full OpenVPN management conversation (fake openvpn, no root)
-.venv/bin/python test_ui.py    # browser-level checks over Chrome DevTools Protocol (skips without Chrome)
+./build.sh          # -> dist/EazyConnector and, on Linux, an .AppImage
 ```
 
-`test_e2e.py` uses Starlette's TestClient, which implements WebSockets
-in-process — it cannot catch server-level transport problems. `test_live.py`
-exists for those.
+### Running it
+
+It prints a URL and opens your browser. On first launch you choose a **master
+password** — it encrypts everything, and it is the only thing that can decrypt
+your vault. Press <kbd>F1</kbd> for the full manual.
+
+For the VPN feature you also need OpenVPN installed
+(`sudo apt install openvpn`); everything else works without it.
+
+## Security model
+
+This was written for a machine other people can log into, so the defaults
+assume a hostile local neighbour:
+
+- **The server binds `127.0.0.1` on an ephemeral port.** There is no flag to
+  bind it anywhere else.
+- **The session token lives in the URL fragment**, which browsers never send to
+  the server, so it stays out of request logs. It is never passed as a command
+  argument either — `/proc/<pid>/cmdline` is world-readable.
+- **Every request checks `Origin`**, and both WebSockets take the token as their
+  first message, which blocks CSRF and DNS rebinding from other browser tabs.
+- **Secrets never reach the browser.** The page asks to connect; the server
+  performs the authentication.
+- **The vault** is scrypt (n=2¹⁷) + AES-256-GCM, auto-locking after 15 minutes
+  idle. Hostnames and ports live in a separate plain config with no secrets, so
+  it stays diffable.
+- **Files are `0600` inside a `0700` directory**, re-applied on every write.
+- **Host keys are verified**, always. A new host prompts with its fingerprint;
+  verification is never silently skipped.
+- **Session logs are encrypted**, because a terminal log can contain a password
+  you typed.
+- **Exports contain no secrets** — no passwords, keys, passphrases, TOTP
+  secrets, VPN profiles or macro bodies.
+
+Everything lives in `~/.eazyconnector/`:
+
+```
+config.json   0600   hosts, ports, groups — no secrets, safe to sync
+vault.enc     0600   AES-256-GCM: passwords, keys, TOTP secrets, macro bodies
+known_hosts   0600   pinned SSH host keys
+logs/         0700   encrypted session recordings
+```
+
+## Platform support
+
+| | Status |
+|---|---|
+| **Linux** | Supported and used daily. AppImage provided. |
+| **macOS** | Should work — it's POSIX, and all OS-specific code is behind one shim. Not yet built or tested; run `./build.sh` on a Mac. |
+| **Windows** | Core (SSH/SFTP/vault/import) is portable, but the VPN elevation and file-permission paths need the Windows branches in `eazyconnector/platform.py` finished and tested. |
+
+Contributions for macOS/Windows are very welcome — see
+[PACKAGING.md](PACKAGING.md).
+
+## Development
+
+```bash
+.venv/bin/python test_p0.py       # vault crypto, file modes, TOTP vectors, parsers
+.venv/bin/python test_e2e.py      # full stack against an in-process sshd
+.venv/bin/python test_live.py     # real uvicorn + WebSocket + SFTP + import/export
+.venv/bin/python test_vpn.py      # the whole OpenVPN conversation (no root needed)
+.venv/bin/python test_raw.py      # telnet + serial
+.venv/bin/python test_sudokey.py  # reading a root-owned key via sudo
+.venv/bin/python test_ui.py       # browser-level checks over Chrome DevTools Protocol
+```
+
+They are plain scripts — no framework, no fixtures. Run them directly rather
+than piping through `tail`, which hides output if one hangs.
+
+Architecture and design decisions are in [PLAN.md](PLAN.md); packaging and the
+cross-platform story in [PACKAGING.md](PACKAGING.md).
+
+## Licence
+
+Not yet chosen — **this repository has no licence file, which means default
+copyright applies and others have no right to use or redistribute it.** A
+licence (MIT and Apache-2.0 are the usual choices) needs to be added before
+this is meaningfully open source.
+
+## Acknowledgements
+
+- [Ásbrú Connection Manager](https://asbru-cm.net/) — the inspiration, and still
+  the benchmark for this kind of tool.
+- [xterm.js](https://xtermjs.org/) (MIT) — vendored in
+  `eazyconnector/static/vendor/`.
+- [AsyncSSH](https://asyncssh.readthedocs.io/) — the SSH implementation doing
+  the real work.
