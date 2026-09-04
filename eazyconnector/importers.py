@@ -139,3 +139,85 @@ def from_asbru(data: dict) -> tuple[list, list]:
         conns.append(conn)
 
     return list(jump_by_key.values()) + conns, warnings
+
+# Fields that are safe to share. Deliberately absent: password, key_pem,
+# passphrase, TOTP secret, sudo password, .ovpn content and macro bodies —
+# macro bodies routinely hold a sudo password, so only their names travel.
+SHAREABLE = ("name", "group", "host", "port", "user", "auth", "proto",
+             "serial_device", "baud", "forwards", "keepalive", "local_before",
+             "remote_command", "local_after", "log", "key_path",
+             "macros", "autorun_macro")
+
+EXPORT_VERSION = 1
+
+
+def to_bundle(connections) -> dict:
+    """A shareable, secret-free snapshot of the connection list."""
+    by_id = {c["id"]: c for c in connections}
+    rows = []
+    for c in connections:
+        row = {k: c[k] for k in SHAREABLE
+               if c.get(k) not in (None, "", [], False)}
+        # Connection ids are local to one vault, so a jump host travels by name
+        # and is re-linked on import.
+        if c.get("jump") and c["jump"] in by_id:
+            row["jump_name"] = by_id[c["jump"]]["name"]
+        rows.append(row)
+    refs = {m for c in connections for m in (c.get("macros") or [])}
+    refs |= {c["autorun_macro"] for c in connections if c.get("autorun_macro")}
+    return {
+        "eazyconnector_export": EXPORT_VERSION,
+        "connections": rows,
+        "macros_referenced": sorted(refs),
+        "note": ("Structure only. Contains no passwords, private keys, passphrases, "
+                 "TOTP secrets, VPN profiles or macro bodies. Key-file paths are "
+                 "included so the recipient knows which key each host needs."),
+    }
+
+
+def from_bundle(data: dict) -> tuple[list, list]:
+    """Read a bundle produced by to_bundle(). Jump hosts are linked by name."""
+    if not isinstance(data, dict) or "eazyconnector_export" not in data:
+        raise ValueError("not an EazyConnector export file")
+    if int(data["eazyconnector_export"]) > EXPORT_VERSION:
+        raise ValueError(f"this file needs a newer EazyConnector "
+                         f"(format v{data['eazyconnector_export']})")
+    warnings, conns = [], []
+    for r in data.get("connections") or []:
+        if not (r.get("name") or "").strip():
+            warnings.append("skipped an entry with no name")
+            continue
+        kf = (r.get("key_path") or "").strip() or None
+        conns.append({
+            "id": _gen(), "name": r["name"].strip(), "group": r.get("group", ""),
+            "host": (r.get("host") or "").strip(), "port": int(r.get("port") or 22),
+            "user": (r.get("user") or "").strip(),
+            "auth": r.get("auth") or ("key" if kf else "password"),
+            "jump": "", "forwards": [str(f) for f in (r.get("forwards") or [])],
+            "proto": r.get("proto") or "ssh",
+            "serial_device": r.get("serial_device", ""), "baud": int(r.get("baud") or 115200),
+            "keepalive": int(r.get("keepalive") or 30),
+            "local_before": r.get("local_before", ""),
+            "remote_command": r.get("remote_command", ""),
+            "local_after": r.get("local_after", ""), "log": bool(r.get("log")),
+            "macros": [str(m) for m in (r.get("macros") or [])],
+            "autorun_macro": r.get("autorun_macro", ""),
+            "_keyfile": kf, "_jump_name": (r.get("jump_name") or "").strip(),
+        })
+
+    by_name = {c["name"]: c for c in conns}
+    for c in conns:
+        jn = c.pop("_jump_name", "")
+        if jn and jn in by_name:
+            c["jump"] = by_name[jn]["id"]
+        elif jn:
+            warnings.append(f"{c['name']}: jump host {jn!r} is not in this file, left direct")
+
+    refs = [m for m in (data.get("macros_referenced") or [])]
+    if refs:
+        warnings.append("Macros are referenced but not included (a macro body can hold a "
+                        "sudo password): " + ", ".join(refs) +
+                        ". Recreate them locally with the bolt button.")
+    if not conns:
+        warnings.append("this file contains no connections")
+    return conns, warnings

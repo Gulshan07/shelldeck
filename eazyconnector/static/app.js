@@ -460,22 +460,61 @@ $("#import-btn").onclick = () => {
 };
 $("#import-cancel").onclick = () => $("#import-dlg").close();
 
-$("#import-dlg").querySelectorAll(".import-src button").forEach((b) => {
-  b.onclick = async () => {
-    importSource = b.dataset.src;
-    $("#import-summary").innerHTML = "Reading…";
-    $("#import-preview").hidden = false;
-    $("#import-go").hidden = true;
-    try {
-      const p = await api(`/api/import/${importSource}/preview`);
-      renderPreview(p);
-    } catch (err) {
-      $("#import-summary").innerHTML = `<span style="color:#e5707a">${esc(err.message)}</span>`;
-      $("#import-list").innerHTML = "";
-      $("#import-warn").textContent = "";
-    }
-  };
+let importBundle = null;   // parsed contents of a shared export file
+
+async function runImportPreview(source, extra = {}) {
+  importSource = source;
+  $("#import-summary").innerHTML = "Reading…";
+  $("#import-preview").hidden = false;
+  $("#import-go").hidden = true;
+  try {
+    renderPreview(await api(`/api/import/${source}/preview`,
+      { method: "POST", body: JSON.stringify(extra) }));
+  } catch (err) {
+    $("#import-summary").innerHTML = `<span style="color:var(--danger)">${esc(err.message)}</span>`;
+    $("#import-list").innerHTML = "";
+    $("#import-warn").textContent = "";
+  }
+}
+
+$("#import-dlg").querySelectorAll(".import-src button[data-src]").forEach((b) => {
+  b.onclick = () => { importBundle = null; runImportPreview(b.dataset.src); };
 });
+
+// A colleague's exported file. Parsed in the browser, then previewed like any
+// other source so nothing is written until it is reviewed.
+$("#bundle-file").onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    importBundle = JSON.parse(await file.text());
+  } catch {
+    toast("That file is not valid JSON.", "err");
+    return;
+  }
+  runImportPreview("bundle", { bundle: importBundle });
+};
+// the label is focusable, so make Enter/Space open the picker too
+$("#bundle-pick").onkeydown = (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#bundle-file").click(); }
+};
+
+$("#export-btn").onclick = async () => {
+  try {
+    const r = await fetch("/api/export", { headers: { "Authorization": "Bearer " + TOKEN } });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const bundle = await r.json();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: `eazyconnector-connections-${new Date().toISOString().slice(0, 10)}.json`,
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`Exported ${bundle.connections.length} connections — no passwords, keys or VPN profiles.`, "ok");
+  } catch (err) { toast("Export failed: " + err.message, "err"); }
+};
 
 function renderPreview(p) {
   $("#import-summary").innerHTML =
@@ -504,7 +543,8 @@ $("#import-go").onclick = async () => {
   $("#import-go").disabled = true;
   $("#import-summary").innerHTML = "Importing…";
   try {
-    const r = await api(`/api/import/${importSource}/commit`, { method: "POST", body: "{}" });
+    const r = await api(`/api/import/${importSource}/commit`, { method: "POST",
+      body: JSON.stringify(importSource === "bundle" ? { bundle: importBundle } : {}) });
     let msg = `Imported ${r.created}, skipped ${r.skipped} duplicate(s), ${r.keys_imported} key file(s) loaded.`;
     if (r.key_failures?.length) msg += "\nKey files that could not be read:\n" + r.key_failures.join("\n");
     $("#import-summary").textContent = msg;

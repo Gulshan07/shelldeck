@@ -300,6 +300,69 @@ async def main():
         assert (await http.get("/api/logs")).json() == []
         print("ok  log delete works")
 
+    # --- export / import a shareable bundle ---------------------------------
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as h4:
+        # a connection with a secret + a jump host pointing at it
+        rb = await h4.post("/api/connections", json={
+            "name": "bundle-bastion", "group": "shared", "host": "10.7.0.1", "port": 22,
+            "user": "ubuntu", "auth": "password", "password": "BASTION-SECRET-PW"})
+        bast = rb.json()["id"]
+        await h4.post("/api/connections", json={
+            "name": "bundle-app", "group": "shared", "host": "10.7.0.2", "port": 2222,
+            "user": "deploy", "auth": "password", "password": "APP-SECRET-PW",
+            "jump": bast, "forwards": "L 8081:localhost:80", "keepalive": 15})
+
+        raw = (await h4.get("/api/export")).text
+        assert "BASTION-SECRET-PW" not in raw and "APP-SECRET-PW" not in raw, \
+            "the export leaked a stored password"
+        bundle = json.loads(raw)
+        app_row = next(r for r in bundle["connections"] if r["name"] == "bundle-app")
+        assert app_row["jump_name"] == "bundle-bastion", app_row
+        print("ok  export contains the structure and no stored passwords")
+
+        # importing into the SAME vault is a no-op: everything is a duplicate
+        pv = (await h4.post("/api/import/bundle/preview", json={"bundle": bundle})).json()
+        assert pv["new"] == 0 and pv["duplicates"] == pv["total"], pv
+        print(f"ok  re-importing your own export changes nothing ({pv['duplicates']} duplicates)")
+
+    # now a DIFFERENT vault, as a colleague would have. Everything global is put
+    # back afterwards so the rest of the suite still sees the original vault.
+    import tempfile as _tf
+    _orig = (store.HOME, store.CONFIG, store.VAULT, server.vault)
+    other = _tf.mkdtemp()
+    store.HOME = store.Path(other); store.HOME.chmod(0o700)
+    store.CONFIG = store.HOME / "config.json"
+    store.VAULT = store.HOME / "vault.enc"
+    server.vault = store.Vault(); server.vault.create("colleague-master-pw")
+    store.save_config({"connections": [], "vpns": []})
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as h5:
+        pv = (await h5.post("/api/import/bundle/preview", json={"bundle": bundle})).json()
+        assert pv["new"] > 0 and any(c["via"] == "bundle-bastion" for c in pv["connections"]), pv
+        r = (await h5.post("/api/import/bundle/commit", json={"bundle": bundle})).json()
+        # what the preview promised is what the import creates
+        assert r["created"] == pv["new"], (r, pv["new"])
+        cfg = store.load_config()
+        by = {c["name"]: c for c in cfg["connections"]}
+        # the jump link was rebuilt from the name against brand-new local ids
+        assert by["bundle-app"]["jump"] == by["bundle-bastion"]["id"] != bast
+        assert by["bundle-app"]["forwards"] == ["L 8081:localhost:80"]
+        assert by["bundle-app"]["keepalive"] == 15
+        # and it arrived with no credentials
+        assert not server.vault.get(by["bundle-app"]["id"]).get("password")
+        print("ok  colleague's vault: imported, jump re-linked by name, no credentials")
+
+        r2 = (await h5.post("/api/import/bundle/commit", json={"bundle": bundle})).json()
+        assert r2["created"] == 0, r2
+        print("ok  importing the same file twice is idempotent")
+
+        bad = (await h5.post("/api/import/bundle/preview", json={"bundle": {"nope": 1}}))
+        assert bad.status_code == 400, bad.text
+        print("ok  a non-EazyConnector file is refused")
+
+    store.HOME, store.CONFIG, store.VAULT, server.vault = _orig
+
     # --- VPN profile storage: nothing sensitive in plain config -------------
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as http:

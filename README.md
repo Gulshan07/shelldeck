@@ -79,6 +79,13 @@ before connecting, a command run on the server right after login, a local
 command after disconnecting, and the keepalive interval. Terminal **theme,
 font size and family** are set via the gear button and saved per browser.
 
+**Share a setup with your team:** Import → *Export…* writes a JSON file with
+your connections, groups, jump links and port-forward rules and **no** secrets
+(no passwords, keys, passphrases, TOTP secrets, VPN profiles or macro bodies —
+only key-file paths, so the recipient knows which key each host needs). They
+import it via Import → *Shared file*: jump hosts are re-linked by name against
+their own ids, duplicates are skipped, and re-importing is idempotent.
+
 Clusters: open several servers as split panes in one tab, click **⇄ broadcast**,
 and your typing goes to every terminal at once — run one command across a fleet.
 

@@ -374,3 +374,10 @@ details label { margin-top:9px; }
 #editor .btn, #vpn-editor .btn, #editor menu button, #vpn-editor menu button { padding:8px 16px; }
 #editor menu button[value="save"], #vpn-editor menu button[value="save"] {
   background:var(--accent); border-color:var(--accent); color:var(--accent-fg); font-weight:600; }
+
+/* --- import / export --------------------------------------------------- */
+.export-row { display:flex; align-items:center; gap:14px; margin:14px 0 4px;
+  padding:12px; border:1px solid var(--line); border-radius:var(--r); background:var(--raised); }
+.export-row > div { flex:1; min-width:0; }
+.export-row b { font-size:13px; }
+#bundle-pick { cursor:pointer; justify-content:center; flex:1; }

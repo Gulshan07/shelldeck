@@ -173,6 +173,7 @@ async def delete_connection(request):
 IMPORT_SOURCES = {
     "ssh_config": ("~/.ssh/config", "ssh"),
     "asbru": ("~/.config/asbru/asbru.yml", "asbru"),
+    "bundle": (None, "bundle"),     # an exported EazyConnector file, sent in the body
 }
 
 
@@ -187,7 +188,35 @@ def _parse_source(source: str, path: str):
 
 
 def _dupe_key(c):
-    return (c["host"].strip().lower(), c["user"].strip().lower(), int(c["port"]))
+    # Serial connections have no host/port to compare, so key them by device+name;
+    # otherwise every serial entry would collide and be skipped as a duplicate.
+    if (c.get("proto") or "ssh") == "serial":
+        return ("serial", (c.get("serial_device") or "").strip().lower(),
+                (c.get("name") or "").strip().lower())
+    return ((c.get("host") or "").strip().lower(), (c.get("user") or "").strip().lower(),
+            int(c.get("port") or 22))
+
+
+async def _resolve_import(source, body):
+    """(connections, warnings, label) for any import source."""
+    if source == "bundle":
+        data = body.get("bundle")
+        if not isinstance(data, dict):
+            raise ValueError("no export file contents in the request")
+        conns, warnings = importers.from_bundle(data)
+        return conns, warnings, "shared export file"
+    path = body.get("path") or IMPORT_SOURCES[source][0]
+    conns, warnings = await asyncio.to_thread(_parse_source, source, path)
+    return conns, warnings, os.path.expanduser(path)
+
+
+@api
+async def export_bundle(request):
+    """Shareable snapshot: structure only, no secrets. See importers.SHAREABLE."""
+    cfg = store.load_config()
+    bundle = importers.to_bundle(cfg["connections"])
+    bundle["exported"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    return JSONResponse(bundle)
 
 
 @api
@@ -195,20 +224,24 @@ async def import_preview(request):
     source = request.path_params["source"]
     if source not in IMPORT_SOURCES:
         return JSONResponse({"error": "unknown source"}, status_code=404)
-    default_path, _ = IMPORT_SOURCES[source]
-    path = (await request.json()).get("path") or default_path if request.method == "POST" else default_path
+    body = await request.json() if request.method == "POST" else {}
     try:
-        conns, warnings = await asyncio.to_thread(_parse_source, source, path)
+        conns, warnings, label = await _resolve_import(source, body)
     except FileNotFoundError as e:
         return JSONResponse({"error": f"not found: {e}"}, status_code=404)
     except Exception as e:
         return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=400)
 
     existing = {_dupe_key(c) for c in store.load_config()["connections"]}
+    # Commit also collapses duplicates *within* one batch, so count them the same
+    # way here — otherwise the preview promises more than the import creates.
+    seen = set(existing)
     groups = {}
     key_missing, key_unreadable = [], []
     for c in conns:
-        c["_dupe"] = _dupe_key(c) in existing
+        dk = _dupe_key(c)
+        c["_dupe"] = dk in seen
+        seen.add(dk)
         groups[c["group"]] = groups.get(c["group"], 0) + 1
         kf = c.get("_keyfile")
         if kf and not os.path.exists(kf):
@@ -219,7 +252,7 @@ async def import_preview(request):
             except OSError:
                 key_unreadable.append(kf)
     return JSONResponse({
-        "path": os.path.expanduser(path),
+        "path": label,
         "total": len(conns),
         "new": sum(not c["_dupe"] for c in conns),
         "duplicates": sum(c["_dupe"] for c in conns),
@@ -243,9 +276,8 @@ async def import_commit(request):
     if not vault.unlocked:
         return JSONResponse({"error": "locked"}, status_code=423)
     body = await request.json()
-    path = body.get("path") or IMPORT_SOURCES[source][0]
     try:
-        conns, warnings = await asyncio.to_thread(_parse_source, source, path)
+        conns, warnings, _label = await _resolve_import(source, body)
     except Exception as e:
         return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=400)
 
@@ -1049,6 +1081,7 @@ app = Starlette(
         Route("/api/logs/{name}", log_get, methods=["GET"]),
         Route("/api/logs/{name}/frames", log_frames),
         Route("/api/logs/{name}", log_delete, methods=["DELETE"]),
+        Route("/api/export", export_bundle),
         Route("/api/import/{source}/preview", import_preview, methods=["GET", "POST"]),
         Route("/api/import/{source}/commit", import_commit, methods=["POST"]),
         Route("/api/vpns", vpns, methods=["GET", "POST"]),

@@ -328,6 +328,82 @@ def test_import_asbru():
     assert not any("pass" in c or "ENCRYPTED" in str(c.values()) for c in conns)
 
 
+def test_export_bundle_carries_no_secrets():
+    """The whole point of the export is that it is safe to hand to a colleague."""
+    from eazyconnector.importers import to_bundle, SHAREABLE
+    import json as _json
+
+    conns = [
+        {"id": "a1", "name": "bastion", "group": "prod", "host": "10.0.0.1", "port": 22,
+         "user": "ubuntu", "auth": "key", "jump": "", "forwards": [],
+         "key_path": "/home/me/keys/bastion.pem", "proto": "ssh"},
+        {"id": "a2", "name": "db", "group": "prod", "host": "10.0.0.2", "port": 22,
+         "user": "ubuntu", "auth": "password", "jump": "a1",
+         "forwards": ["L 3306:localhost:3306"], "log": True, "keepalive": 15,
+         "macros": ["mysql-login"], "autorun_macro": "mysql-login",
+         "local_before": "aws sso login", "remote_command": "cd /srv", "proto": "ssh"},
+    ]
+    bundle = to_bundle(conns)
+    # scan the rows only: the bundle's own `note` mentions these words on purpose
+    blob = _json.dumps(bundle["connections"]).lower().replace('"password"', '""')
+
+    # nothing secret may appear, and no field outside the allow-list may ride along
+    for banned in ("password", "key_pem", "passphrase", "totp", "ovpn", "sudo"):
+        assert banned not in blob, f"{banned!r} leaked into the export"
+    assert "no passwords" in bundle["note"].lower(), "the bundle should say what it omits"
+    allowed = set(SHAREABLE) | {"jump_name"}
+    for row in bundle["connections"]:
+        assert set(row) <= allowed, f"unexpected exported field(s): {set(row) - allowed}"
+    assert "id" not in bundle["connections"][0], "local ids must not be exported"
+
+    # a jump host travels as a name, because ids are local to one vault
+    db = next(r for r in bundle["connections"] if r["name"] == "db")
+    assert db["jump_name"] == "bastion"
+    assert "jump" not in db
+    # macro names are listed, bodies are not
+    assert bundle["macros_referenced"] == ["mysql-login"]
+
+
+def test_bundle_round_trip_relinks_jump_by_name():
+    from eazyconnector.importers import to_bundle, from_bundle
+
+    conns = [
+        {"id": "x", "name": "bastion", "group": "g", "host": "10.0.0.1", "port": 22,
+         "user": "u", "auth": "key", "jump": "", "forwards": [], "proto": "ssh"},
+        {"id": "y", "name": "app", "group": "g", "host": "10.0.0.2", "port": 2222,
+         "user": "deploy", "auth": "password", "jump": "x",
+         "forwards": ["D 1080"], "keepalive": 15, "log": True, "proto": "ssh"},
+        {"id": "z", "name": "console", "group": "g", "host": "", "port": 22, "user": "",
+         "auth": "password", "jump": "", "forwards": [], "proto": "serial",
+         "serial_device": "/dev/ttyUSB0", "baud": 9600},
+    ]
+    back, warnings = from_bundle(to_bundle(conns))
+    by = {c["name"]: c for c in back}
+    assert set(by) == {"bastion", "app", "console"}
+    # the link survived even though every id is freshly generated
+    assert by["app"]["jump"] == by["bastion"]["id"] != "x"
+    assert by["app"]["port"] == 2222 and by["app"]["forwards"] == ["D 1080"]
+    assert by["app"]["keepalive"] == 15 and by["app"]["log"] is True
+    assert by["console"]["proto"] == "serial" and by["console"]["serial_device"] == "/dev/ttyUSB0"
+    # imported entries carry no secrets to write
+    assert all("password" not in c and "key_pem" not in c for c in back)
+
+    # a dangling jump warns instead of pointing at nothing
+    partial = to_bundle(conns)
+    partial["connections"] = [r for r in partial["connections"] if r["name"] != "bastion"]
+    back2, warns2 = from_bundle(partial)
+    assert next(c for c in back2 if c["name"] == "app")["jump"] == ""
+    assert any("bastion" in w and "not in this file" in w for w in warns2)
+
+    # junk is refused
+    for bad in ({}, {"connections": []}, {"eazyconnector_export": 99}):
+        try:
+            from_bundle(bad)
+            raise AssertionError(f"should have refused {bad}")
+        except ValueError:
+            pass
+
+
 def test_import_unreadable_key_stays_key_auth():
     """A key file that exists but cannot be read must not become a silent
     empty-password connection; it stays key-auth and fails loudly at connect."""

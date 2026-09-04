@@ -269,13 +269,25 @@
 </dialog>
 
 <dialog id="import-dlg">
-  <h2>Import connections</h2>
+  <h2>Import &amp; share connections</h2>
   <div class="import-src">
-    <button data-src="ssh_config">from ~/.ssh/config</button>
-    <button data-src="asbru">from Ásbrú</button>
+    <button data-src="ssh_config"><svg class="ic" viewBox="0 0 24 24"><use href="#i-download"/></svg><span>~/.ssh/config</span></button>
+    <button data-src="asbru"><svg class="ic" viewBox="0 0 24 24"><use href="#i-download"/></svg><span>Ásbrú</span></button>
+    <label class="btn" id="bundle-pick" tabindex="0"><svg class="ic" viewBox="0 0 24 24"><use href="#i-file-text"/></svg><span>Shared file</span>
+      <input type="file" id="bundle-file" accept=".json,application/json" hidden></label>
   </div>
   <p class="note">Structure, hosts and key-file paths only. Saved passwords are never read.
     Key files are copied into the vault. Duplicates (same host, user and port) are skipped.</p>
+
+  <div class="export-row">
+    <div>
+      <b>Share your setup</b>
+      <div class="note" style="margin:3px 0 0">Writes a JSON file with your connections, groups,
+        jump links and port-forward rules — and <b>no</b> passwords, private keys, passphrases,
+        TOTP secrets, VPN profiles or macro bodies. Give it to a colleague and they import it above.</div>
+    </div>
+    <button id="export-btn" class="btn"><svg class="ic" viewBox="0 0 24 24"><use href="#i-upload"/></svg><span>Export…</span></button>
+  </div>
   <div id="import-preview" hidden>
     <div id="import-summary"></div>
     <div id="import-list"></div>
@@ -369,6 +381,13 @@
       <tr><td><b>Import</b> (download icon)</td><td>pull in everything from <code>~/.ssh/config</code> or Ásbrú at
         once — grouped, with jump hosts linked. Passwords are never read; you review a preview first.</td></tr>
       <tr><td><b>pencil</b> / <b>bin</b> on a row</td><td>edit or delete a connection</td></tr>
+      <tr><td><b>Export…</b> (in Import)</td><td>saves a JSON file of your connections, groups, jump
+        links and forwarding rules to hand to a colleague. It contains <b>no</b> passwords, keys,
+        passphrases, TOTP secrets, VPN profiles or macro bodies — only the key-file <i>paths</i>, so
+        they know which key each host needs.</td></tr>
+      <tr><td><b>Shared file</b> (in Import)</td><td>imports a colleague's exported file. Jump hosts
+        are re-linked by name, duplicates are skipped, and you review a preview first. Each person
+        adds their own passwords and keys afterwards.</td></tr>
     </table>
   </section>
 
