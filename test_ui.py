@@ -203,6 +203,32 @@ async def main():
         assert await c.js('document.documentElement.getAttribute("data-theme")') == "dark"
         print("ok  chrome theme toggles light/dark and persists")
 
+        # --- search matches more than the name --------------------------------
+        await c.js("""conns = [
+          {id:'s1', name:'app1', group:'PROD', host:'10.2.137.119', port:22, user:'ubuntu',
+           auth:'password', jump:'', forwards:[], proto:'ssh'},
+          {id:'s2', name:'db-main', group:'PROD', host:'10.1.157.138', port:22, user:'azureuser',
+           auth:'password', jump:'', forwards:[], proto:'ssh'},
+          {id:'s3', name:'console', group:'LAB', host:'', port:22, user:'',
+           auth:'password', jump:'', forwards:[], proto:'serial', serial_device:'/dev/ttyUSB0'}];
+          renderTree();""")
+        async def found(q):
+            return await c.js(f"""(() => {{ document.querySelector('#filter').value = {q!r};
+                renderTree(); return document.querySelectorAll('.conn').length; }})()""")
+        assert await found("10.1.157") == 1, "should find a host by IP fragment"
+        assert await found("10.2.137.119") == 1, "should find a host by full IP"
+        assert await found("azureuser") == 1, "should find a connection by username"
+        assert await found("ttyUSB0") == 1, "should find a serial connection by device"
+        assert await found("PROD") == 2, "should find connections by group"
+        # name+host used to be concatenated with no separator, so this matched app1
+        assert await found("app110") == 0, "must not match across the name/host boundary"
+        assert await found("prod db") == 1, "multiple terms should narrow (AND)"
+        assert await found("") == 3, "an empty query shows everything"
+        print("ok  search matches name, IP, user, device and group; terms narrow")
+        # put the real list back: later checks open a session from it
+        await c.js("document.querySelector('#filter').value = ''")
+        await c.js("(async () => { await loadTree(); return conns.length; })()")
+
         # A long listing must scroll inside its pane, not stretch the page. Every
         # ancestor needs min-height:0 or the grid item grows and nothing scrolls.
         server.vault.put("a", {"password": SSH_PW})

@@ -1,13 +1,16 @@
 """The only module that knows which OS it runs on.
 
-POSIX behaviour is exactly what the code did before this module existed. Windows
-branches are best-effort today (private per-user profile) and marked where they
-need finishing when Windows packaging happens; nothing here crashes on Windows.
+POSIX behaviour is exactly what the code did before this module existed.
+Windows uses ACLs instead of mode bits and UAC instead of sudo.
 """
 import os
 import shutil
+import subprocess
 
 IS_WINDOWS = os.name == "nt"
+
+# Keep a console window from flashing up for each helper process we run.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if IS_WINDOWS else 0
 
 
 def set_umask():
@@ -24,7 +27,12 @@ def make_private_dir(path):
 def open_private(path, flags):
     """Open a file for writing, owner-only. Returns an fd."""
     if IS_WINDOWS:
-        return os.open(path, flags)          # mode largely ignored; ACL applied on close
+        # O_BINARY is essential, not cosmetic: without it the CRT may translate
+        # \n to \r\n on write, which would corrupt the encrypted vault and the
+        # session logs (both are binary AES-GCM blobs, not text).
+        fd = os.open(path, flags | getattr(os, "O_BINARY", 0))
+        _win_owner_only(path)                # apply the ACL as soon as it exists
+        return fd
     return os.open(path, flags, 0o600)
 
 
@@ -40,13 +48,16 @@ def _restrict(path, posix_mode):
 
 
 def _win_owner_only(path):
-    # ponytail: best-effort until Windows packaging. Per-user %LOCALAPPDATA% is
-    # already not world-readable; tighten to owner-only with icacls then.
+    """Break inheritance and grant only the current user — the ACL equivalent of
+    chmod 600/700. Run without a shell so a path with quotes cannot inject."""
     try:
         import getpass
-        os.system(f'icacls "{path}" /inheritance:r /grant:r "{getpass.getuser()}":F >NUL 2>&1')
+        subprocess.run(
+            ["icacls", str(path), "/inheritance:r", "/grant:r", f"{getpass.getuser()}:F"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=_NO_WINDOW, check=False, timeout=15)
     except Exception:
-        pass
+        pass          # a failed ACL must never stop the app from starting
 
 
 def is_elevated() -> bool:
@@ -80,7 +91,24 @@ def elevation_prefix(sudo_pw):
     if is_elevated() or os.environ.get("EAZY_OPENVPN_NO_SUDO"):
         return []
     if IS_WINDOWS:
-        # ponytail: Windows elevation is a UAC prompt, not a piped password.
-        # Until the Windows build, run the app elevated so openvpn inherits it.
+        # Windows elevation is a UAC prompt, not a password we can pipe, so there
+        # is no prefix that works. elevation_problem() explains this up front
+        # instead of letting openvpn fail with a confusing access error.
         return []
     return ["sudo", "-S", "-p", ""] if sudo_pw else ["sudo", "-n"]
+
+
+def elevation_problem():
+    """Why we cannot get the privileges openvpn needs, or None if we can."""
+    if is_elevated() or os.environ.get("EAZY_OPENVPN_NO_SUDO"):
+        return None
+    if IS_WINDOWS:
+        return ("OpenVPN needs Administrator rights on Windows, and Windows cannot be "
+                "given a password the way sudo can. Close EazyConnector, right-click it "
+                "and choose 'Run as administrator', then connect again.")
+    return None      # POSIX: sudo handles it, with or without a stored password
+
+
+def sudo_available() -> bool:
+    """Whether a root-owned file can be read by escalating. Never on Windows."""
+    return not IS_WINDOWS and shutil.which("sudo") is not None

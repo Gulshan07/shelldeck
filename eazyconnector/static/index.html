@@ -77,7 +77,8 @@
     </div>
     <div class="search-wrap">
       <svg class="ic search-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
-      <input id="filter" placeholder="Search connections…" aria-label="Search connections">
+      <input id="filter" placeholder="Search name, host, user, group…"
+             aria-label="Search connections by name, host, IP, user or group">
     </div>
     <div id="tree"></div>
     <div id="vpn-box">
@@ -414,7 +415,9 @@
     <table>
       <tr><td><b>Drag</b> a connection onto a group</td><td>moves it into that group</td></tr>
       <tr><td><b>Click</b> a group header</td><td>collapse or expand it</td></tr>
-      <tr><td>Search box</td><td>filter the whole list as you type</td></tr>
+      <tr><td>Search box</td><td>matches <b>name, host/IP, username, group, protocol, port</b> and
+        the jump host's name. Several words narrow it further — <code>star db</code> finds db hosts
+        in the STAR group.</td></tr>
       <tr><td><b>Drag</b> the sidebar's right edge</td><td>make the list wider or narrower (double-click the edge to reset)</td></tr>
       <tr><td><b>Tab</b> / <kbd>Enter</kbd></td><td>the whole list is keyboard-navigable — Tab to a
         connection and press Enter to open it (Ctrl+Enter to split)</td></tr>

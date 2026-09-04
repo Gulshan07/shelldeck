@@ -1,4 +1,5 @@
 """Launch on an ephemeral loopback port. Token goes in the URL fragment only."""
+import os
 import socket
 import threading
 import webbrowser
@@ -23,7 +24,10 @@ def main():
     print(f"EazyConnector → {url}")
     print(f"(also saved to {store.URL_FILE}, mode 0600)")
 
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    # Headless servers and CI have no browser to open; opening one there either
+    # fails noisily or hangs.
+    if not os.environ.get("EAZY_NO_BROWSER"):
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
 
 

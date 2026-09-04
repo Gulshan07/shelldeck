@@ -1,0 +1,124 @@
+name: build
+
+# Windows and macOS have no developer machine behind them here, so CI is the
+# verification: each build runs on that OS and must survive packaging/smoke.py,
+# which launches the binary and checks it serves, bundles its assets and
+# enforces its token.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: tests (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[import,serial]"
+      - name: Unit and integration suites
+        run: |
+          set -e
+          python test_p0.py
+          python test_e2e.py
+          python test_vpn.py
+          python test_raw.py
+          python test_sudokey.py
+          python test_live.py
+      # test_ui.py needs a browser; it skips itself when Chrome is absent.
+      - name: Browser suite
+        run: python test_ui.py
+
+  build:
+    name: ${{ matrix.label }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux
+            binary: dist/EazyConnector
+          - os: windows-latest
+            label: windows
+            binary: dist/EazyConnector.exe
+          - os: macos-latest
+            label: macos
+            binary: dist/EazyConnector
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[build,import,serial]"
+
+      - name: Build
+        run: pyinstaller --clean -y eazyconnector.spec
+
+      # The real check: does the thing we just built actually run on this OS?
+      - name: Smoke test the binary
+        run: python packaging/smoke.py ${{ matrix.binary }}
+
+      - name: Build AppImage
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -e
+          curl -sSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          rm -rf build/AppDir && mkdir -p build/AppDir/usr/bin
+          cp dist/EazyConnector build/AppDir/usr/bin/
+          cp packaging/eazyconnector.desktop packaging/eazyconnector.png build/AppDir/
+          cp packaging/eazyconnector.png build/AppDir/.DirIcon
+          cp packaging/AppRun build/AppDir/AppRun && chmod +x build/AppDir/AppRun
+          # appimagetool itself needs FUSE, which CI containers lack
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run --no-appstream \
+            build/AppDir dist/EazyConnector-x86_64.AppImage
+          SUM=$(sha256sum dist/EazyConnector-x86_64.AppImage | cut -d' ' -f1)
+          sed "s/__SHA256__/$SUM/" packaging/HOW-TO-RUN.txt.in > dist/HOW-TO-RUN.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EazyConnector-${{ matrix.label }}
+          path: |
+            dist/EazyConnector
+            dist/EazyConnector.exe
+            dist/EazyConnector-x86_64.AppImage
+            dist/HOW-TO-RUN.txt
+          if-no-files-found: error
+
+  release:
+    name: attach to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Upload to the tag's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          find artifacts -type f -print
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" --generate-notes || true
+          find artifacts -type f -exec \
+            gh release upload "${GITHUB_REF_NAME}" {} --repo "${GITHUB_REPOSITORY}" --clobber \;

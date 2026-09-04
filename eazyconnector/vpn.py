@@ -103,6 +103,10 @@ class Vpn:
             # State can read failed while openvpn is alive (e.g. status was missed).
             # Starting another would leave two tunnels fighting over the routes.
             await self.down()
+        # Say why up front rather than letting openvpn die on an access error.
+        problem = platform.elevation_problem()
+        if problem:
+            raise VpnError(problem)
         openvpn = platform.find_openvpn()
         if not openvpn:
             raise VpnError("openvpn is not installed or not on PATH "

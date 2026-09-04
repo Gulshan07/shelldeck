@@ -603,6 +603,10 @@ async def _ensure_key(conn, cid, ws):
     try:
         pem = open(path, encoding="utf-8", errors="strict").read()   # readable now?
     except PermissionError:
+        if not platform.sudo_available():
+            # No sudo (Windows): escalating is not something we can do for them.
+            raise ValueError(f"{conn['name']}: cannot read {path}. Grant your user read "
+                             "access to that file, or paste the key into the connection.")
         pem = await _read_key_with_sudo(path, ws)     # root-owned: ask for sudo
     secrets_ = dict(secrets_)
     secrets_["key_pem"] = pem

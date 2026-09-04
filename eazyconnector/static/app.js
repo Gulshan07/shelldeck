@@ -137,10 +137,25 @@ async function loadTree() {
   renderTree();
 }
 
+// Everything a person might type when hunting for a host. Joined with spaces:
+// concatenating name+host directly let "app110" match "app1" + "10.2.137.119".
+function searchText(c) {
+  return [c.name, c.host, c.serial_device, c.user, c.group, c.proto,
+          c.port, c.jump ? nameOf(c.jump) : ""]
+    .filter(Boolean).join(" ").toLowerCase();
+}
+
+// Every term must match, so "star db" narrows to db hosts in the STAR group.
+function matchesFilter(c, terms) {
+  if (!terms.length) return true;
+  const hay = searchText(c);
+  return terms.every((t) => hay.includes(t));
+}
+
 function renderTree() {
-  const q = $("#filter").value.toLowerCase();
+  const terms = $("#filter").value.toLowerCase().split(/\s+/).filter(Boolean);
   const groups = {};
-  for (const c of conns.filter((c) => (c.name + c.host + c.group).toLowerCase().includes(q)))
+  for (const c of conns.filter((c) => matchesFilter(c, terms)))
     (groups[c.group || "ungrouped"] ??= []).push(c);
 
   const shown = Object.values(groups).reduce((n, l) => n + l.length, 0);

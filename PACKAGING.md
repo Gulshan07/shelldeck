@@ -37,11 +37,29 @@ OpenVPN, which stays a normal system install and is only needed for the VPN feat
 Each person's vault, config and keys live in their own `~/.eazyconnector` — nothing
 is shared, nothing is sent anywhere.
 
-## Building all three from one push (later)
+## Building all three from one push
 
-A GitHub Actions matrix (ubuntu-latest / macos-latest / windows-latest) runs
-`build.sh` on each runner and uploads the three artifacts. Add when the repo is on
-GitHub; the build is already CI-ready (no interactive steps).
+`.github/workflows/build.yml` does this on every push: the test suites run on
+Linux, then a matrix builds on ubuntu / windows / macos runners. Each built
+binary must pass `packaging/smoke.py` — it launches the artifact, waits for it to
+bind, and asserts the index serves, the bundled `xterm.js` is present, an
+unauthenticated API call gets 401 and an authenticated one gets 200. A build that
+compiles but cannot run therefore fails the pipeline.
+
+Artifacts are uploaded per platform. Pushing a `v*` tag additionally creates a
+GitHub Release and attaches them, which is how the download link in the README
+gets populated.
+
+## Windows specifics
+
+- File hardening uses `icacls` (break inheritance, grant the current user only)
+  instead of chmod. Run without a shell, so a path cannot inject.
+- `O_BINARY` is set explicitly when writing the vault and session logs. Without
+  it the CRT can translate `\n` to `\r\n` and corrupt those AES-GCM blobs.
+- There is no `sudo`. OpenVPN needs Administrator, so the app checks up front and
+  tells the user to relaunch elevated rather than letting openvpn fail obscurely.
+  Reading a root-owned key file via sudo is likewise unavailable and says so.
+- Serial devices are `COM3`-style rather than `/dev/ttyUSB0`.
 
 ## OpenVPN
 
