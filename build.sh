@@ -23,4 +23,10 @@ if [ "$(uname)" = "Linux" ] && command -v appimagetool >/dev/null 2>&1; then
   cp packaging/AppRun build/AppDir/AppRun && chmod +x build/AppDir/AppRun
   ARCH=x86_64 appimagetool --no-appstream build/AppDir dist/EazyConnector-x86_64.AppImage
   echo "built dist/EazyConnector-x86_64.AppImage"
+
+  # Regenerate the run guide with THIS build's checksum. Written here rather than
+  # kept as a static file, so it can never quote a stale hash after a rebuild.
+  SUM=$(sha256sum dist/EazyConnector-x86_64.AppImage | cut -d' ' -f1)
+  sed "s/__SHA256__/$SUM/" packaging/HOW-TO-RUN.txt.in > dist/HOW-TO-RUN.txt
+  echo "wrote dist/HOW-TO-RUN.txt (sha256 $SUM)"
 fi

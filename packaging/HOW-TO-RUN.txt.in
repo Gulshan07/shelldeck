@@ -1,0 +1,36 @@
+EazyConnector — how to run (Ubuntu)
+
+1. Make it executable and start it:
+      chmod +x EazyConnector-x86_64.AppImage
+      ./EazyConnector-x86_64.AppImage
+   (or right-click → Properties → Permissions → "Allow executing", then double-click)
+
+2. It opens your browser at http://127.0.0.1:<port>. On first launch it asks you
+   to create YOUR OWN master password. Everything you save (servers, keys, VPN)
+   is encrypted with it and stays on your machine, in ~/.eazyconnector.
+
+3. For the one-click VPN feature only, install OpenVPN once:
+      sudo apt install openvpn
+   (SSH, SFTP and everything else work without it.)
+
+4. Press F1 inside the app for the full manual. Highlights:
+      - Import  -> pull your servers in from ~/.ssh/config or Asbru
+      - Shared file -> import a colleague's exported setup
+      - Export  -> share YOUR setup (no passwords/keys ever leave)
+      - Ctrl-click a connection to open it beside another; then
+        "broadcast" types one command into every terminal at once
+      - The whole list is keyboard-navigable (Tab, Enter to open)
+      - sun/moon at the top right switches light/dark
+
+If it won't start with "libfuse.so.2: cannot open", either:
+      sudo apt install libfuse2
+   or run it without FUSE:
+      ./EazyConnector-x86_64.AppImage --appimage-extract-and-run
+
+Verify the download is intact (optional):
+      sha256sum EazyConnector-x86_64.AppImage
+   should print:
+      __SHA256__
+
+Nothing is shared between users and nothing is sent anywhere — each person's
+vault is private to their own machine. Press F1 in the app for the full guide.
