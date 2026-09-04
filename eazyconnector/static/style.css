@@ -118,17 +118,22 @@ main { display:grid; grid-template-rows:auto 1fr; min-width:0; min-height:0; ove
 
 #tree { overflow:auto; min-height:0; margin:0 -4px; padding:0 4px; }
 
+/* The group is the heading for the rows beneath it, so it has to outrank them:
+   it used to be 11px uppercase and dimmer than its own children. */
 .group-name {
   display:flex; align-items:center; gap:6px; width:100%;
-  color:var(--fg-2); font-size:11px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.08em; margin:10px 0 2px; padding:4px 6px;
+  color:var(--fg); font-size:14px; font-weight:650; letter-spacing:-.01em;
+  margin:12px 0 3px; padding:5px 6px;
   border-radius:var(--r-sm); cursor:pointer; user-select:none;
 }
-.group-name:hover { background:var(--raised); color:var(--fg); }
+.group-name:hover { background:var(--raised); }
 .caret { display:inline-flex; color:var(--fg-3); transition:transform .12s; }
 .group.collapsed .caret { transform:rotate(-90deg); }
-.group-count { margin-left:auto; color:var(--fg-3); font-weight:600; font-size:10.5px;
+.group-count { margin-left:auto; color:var(--fg-3); font-weight:600; font-size:11px;
   background:var(--raised); border-radius:10px; padding:1px 7px; }
+/* a rail under the heading, so the rows read as belonging to the group */
+.group-body { margin-left:13px; padding-left:8px; border-left:1px solid var(--line); }
+.group:hover > .group-body { border-left-color:color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .group-open { background:none; border:none; color:var(--fg-3); padding:2px; opacity:0; line-height:0; }
 .group-name:hover .group-open { opacity:1; }
 .group-open:hover { color:var(--accent); }
@@ -214,6 +219,23 @@ main { display:grid; grid-template-rows:auto 1fr; min-width:0; min-height:0; ove
 #bcast-btn.on { background:var(--danger); border-color:var(--danger); color:#fff; font-weight:600; }
 
 #panes { display:grid; gap:1px; background:var(--line); min-height:0; }
+
+/* With no session open the pane area is a large void; this says what to do
+   next and where the non-obvious features live. */
+.pane-empty { background:var(--bg); display:grid; align-content:center; justify-items:center;
+  gap:18px; padding:32px; overflow:auto; text-align:center; }
+.pane-empty .mark { width:38px; height:38px; color:var(--accent); opacity:.9; }
+.pane-empty h2 { margin:0; font-size:18px; font-weight:650; letter-spacing:-.01em; }
+.pane-empty p { margin:5px 0 0; color:var(--fg-2); font-size:13px; }
+.pane-empty .tips { display:grid; gap:9px; justify-items:start; text-align:left;
+  font-size:12.5px; color:var(--fg-2); }
+.pane-empty .tips div { display:grid; grid-template-columns:112px 1fr; gap:12px; align-items:baseline; }
+.pane-empty .tips .k { justify-self:end; color:var(--fg); }
+.pane-empty .tips .k .ic { color:var(--accent); vertical-align:-3px; }
+.pane-empty .acts { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+kbd { font:inherit; font-size:11.5px; background:var(--raised); color:var(--fg);
+  border:1px solid var(--line); border-bottom-width:2px; border-radius:5px;
+  padding:1px 6px; white-space:nowrap; }
 .pane { display:grid; grid-template-rows:auto 1fr; min-width:0; min-height:0; background:var(--term-bg); }
 .pane.broadcasting { box-shadow:inset 0 0 0 2px var(--danger); }
 .pane.broadcasting .pane-head { background:var(--danger-weak); }

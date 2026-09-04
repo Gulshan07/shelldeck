@@ -163,6 +163,22 @@ async def main():
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
 
+        # With no session open the pane area is a large void, so it has to say
+        # what to do next -- and its buttons have to be wired, not decoration.
+        assert await c.js('document.querySelector(".pane-empty") !== null'), \
+            "nothing is shown in the pane area when no session is open"
+        assert await c.js("""['#pe-new','#pe-import','#pe-help']
+            .every(s => typeof document.querySelector(s).onclick === 'function')"""), \
+            "an empty-state button has no handler"
+
+        # A group heading heads the rows beneath it, so it must not be smaller
+        # than its own children -- it used to be 11px against their 13.5px.
+        size = json.loads(await c.js("""JSON.stringify({
+            group: parseFloat(getComputedStyle(document.querySelector('.group-name')).fontSize),
+            row: parseFloat(getComputedStyle(document.querySelector('.conn-name')).fontSize)})"""))
+        assert size["group"] > size["row"], f"group heading is not bigger than its rows: {size}"
+        print(f"ok  empty state guides the user; group {size['group']}px > row {size['row']}px")
+
         # --- accessibility: the app must be usable without a mouse -----------
         # Every visible control needs an accessible name, or a screen reader
         # announces "button" / the glyph's unicode name.

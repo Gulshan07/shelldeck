@@ -156,7 +156,7 @@ function renderTree() {
   const terms = $("#filter").value.toLowerCase().split(/\s+/).filter(Boolean);
   const groups = {};
   for (const c of conns.filter((c) => matchesFilter(c, terms)))
-    (groups[c.group || "ungrouped"] ??= []).push(c);
+    (groups[c.group || "Ungrouped"] ??= []).push(c);
 
   const shown = Object.values(groups).reduce((n, l) => n + l.length, 0);
   if (!shown) {
@@ -725,7 +725,7 @@ function render() {
     <div class="tab ${t === activeTab ? "active" : ""} ${t.broadcast ? "bcast" : ""}" data-id="${t.id}">
       <span>${esc(t.panes.map((p) => p.title).join(" | ")) || "empty"}</span>
       <button class="tab-close" data-id="${t.id}" aria-label="Close tab">${icon("x")}</button>
-    </div>`).join("") || '<span class="hint">Click a connection to open a session &middot; Ctrl-click to split</span>')
+    </div>`).join("") || '<span class="hint">No session open</span>')
     + `<span class="tabbar-spacer"></span>${bcastBtn}`;
 
   $("#tabbar").querySelectorAll(".tab").forEach((el) => {
@@ -749,7 +749,39 @@ function render() {
       panes.appendChild(p.el);
     });
     activeTab.panes.forEach((p) => p.resize && p.resize());
+  } else {
+    panes.style.gridTemplateColumns = "1fr";
+    renderPaneEmpty(panes);
   }
+}
+
+// Shown whenever no session is open. The features people never find on their
+// own -- split panes, whole-group tabs, broadcast -- are named here.
+function renderPaneEmpty(panes) {
+  const tip = (k, t) => `<div><span class="k">${k}</span><span>${t}</span></div>`;
+  panes.innerHTML = `
+    <div class="pane-empty">
+      ${icon("terminal", "mark")}
+      <div>
+        <h2>No session open</h2>
+        <p>Pick a connection on the left to connect.</p>
+      </div>
+      <div class="tips">
+        ${tip("<kbd>Ctrl</kbd> + click", "open it beside the current one, in a split pane")}
+        ${tip(icon("grid"), "on a group heading opens every server in that group, in one tab")}
+        ${tip("broadcast", "then sends what you type to every terminal in the tab at once")}
+        ${tip(icon("folder"), "on a connection browses its files over SFTP")}
+        ${tip("<kbd>F1</kbd>", "the manual, any time")}
+      </div>
+      <div class="acts">
+        <button class="btn primary" id="pe-new">${icon("plus")}<span>New connection</span></button>
+        <button class="btn ghost" id="pe-import">${icon("download")}<span>Import</span></button>
+        <button class="btn ghost" id="pe-help">${icon("help")}<span>Manual</span></button>
+      </div>
+    </div>`;
+  $("#pe-new").onclick = () => openEditor(null);
+  $("#pe-import").onclick = () => $("#import-btn").click();
+  $("#pe-help").onclick = () => $("#help-btn").click();
 }
 
 // --- terminal appearance ------------------------------------------------
