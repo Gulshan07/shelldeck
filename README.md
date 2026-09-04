@@ -159,7 +159,15 @@ checks it serves, bundles its assets and enforces its auth token.
 | **macOS** | Untested. It is POSIX, so the Linux paths should apply unchanged. Unsigned, so Gatekeeper will warn until someone signs it. |
 
 Contributions for macOS/Windows are very welcome — see
-[PACKAGING.md](PACKAGING.md).
+[PACKAGING.md](PACKAGING.md) for the packaging story and
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to send a change.
+
+## Contributing
+
+Fork it, branch, run the suites, open a pull request. `main` takes reviewed
+PRs only — nobody pushes to it directly. The full walkthrough, and the short
+list of things that will get a PR sent back, are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Development
 
