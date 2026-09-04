@@ -163,6 +163,46 @@ async def main():
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
 
+        # --- accessibility: the app must be usable without a mouse -----------
+        # Every visible control needs an accessible name, or a screen reader
+        # announces "button" / the glyph's unicode name.
+        unnamed = json.loads(await c.js("""JSON.stringify(
+            [...document.querySelectorAll('button, [role=button]')]
+              .filter(el => el.offsetParent !== null)
+              // a bare glyph ("?", an emoji, a dingbat) is not a name a screen
+              // reader can speak, so require letters in aria-label or text
+              .filter(el => !/[a-z]/i.test((el.getAttribute('aria-label') || el.textContent).trim()))
+              .map(el => el.className || el.id || el.outerHTML.slice(0, 60)))"""))
+        assert unnamed == [], f"controls with no accessible name: {unnamed}"
+        print(f"ok  every visible control has an accessible name")
+
+        # A connection must be focusable and openable with the keyboard alone.
+        assert await c.js('document.querySelector(".conn").focus(), '
+                          'document.activeElement.classList.contains("conn")'), \
+            "connections are not keyboard-focusable"
+        before = await c.js("tabs.length")
+        for t in ("keyDown", "keyUp"):     # a real key event, not a synthetic click
+            await c.call("Input.dispatchKeyEvent", type=t, key="Enter", code="Enter",
+                         windowsVirtualKeyCode=13, nativeVirtualKeyCode=13)
+        await asyncio.sleep(1.5)
+        assert await c.js("tabs.length") == before + 1, \
+            "pressing Enter on a focused connection did not open a session"
+        print("ok  keyboard-only: focus a connection, press Enter, session opens")
+
+        # focus must be visible once focusable
+        ring = await c.js("""(() => { const el = document.querySelector('.conn');
+            el.focus(); return getComputedStyle(el).boxShadow !== 'none'; })()""")
+        assert ring, "focused connection has no visible focus ring"
+        print("ok  focused elements show a visible focus ring")
+
+        # light/dark chrome theme toggles and persists
+        await c.js('document.querySelector("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "light"
+        assert await c.js('localStorage.getItem("chromeTheme")') == "light"
+        await c.js('document.querySelector("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "dark"
+        print("ok  chrome theme toggles light/dark and persists")
+
         # A long listing must scroll inside its pane, not stretch the page. Every
         # ancestor needs min-height:0 or the grid item grows and nothing scrolls.
         server.vault.put("a", {"password": SSH_PW})

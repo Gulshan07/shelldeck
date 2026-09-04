@@ -2,6 +2,75 @@ const TOKEN = location.hash.slice(1);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c]));
 
+const icon = (n, cls = "") =>
+  `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+
+// --- feedback -----------------------------------------------------------
+// Native alert/confirm/prompt block the page and can't be styled; these are
+// the replacements used everywhere.
+
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.innerHTML = icon(kind === "ok" ? "check" : "alert") + `<span>${esc(msg)}</span>`;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), kind === "err" ? 7000 : 4000);
+}
+
+function confirmDlg(title, body, yesLabel = "Delete") {
+  return new Promise((resolve) => {
+    $("#confirm-title").textContent = title;
+    $("#confirm-body").textContent = body || "";
+    $("#confirm-yes").textContent = yesLabel;
+    const dlg = $("#confirm-dlg");
+    const done = (v) => { resolve(v); dlg.close(); };
+    $("#confirm-yes").onclick = () => done(true);
+    $("#confirm-no").onclick = () => done(false);
+    dlg.onclose = () => resolve(false);        // Esc / backdrop = no
+    dlg.showModal();
+    $("#confirm-no").focus();                  // destructive action never pre-focused
+  });
+}
+
+// A click-to-choose list. Replaces typing a name into prompt().
+function pick(title, note, items) {
+  return new Promise((resolve) => {
+    $("#pick-title").textContent = title;
+    $("#pick-note").textContent = note || "";
+    const list = $("#pick-list");
+    list.innerHTML = items.map((it, i) =>
+      `<button class="pick-row" data-i="${i}">${icon("zap")}<span>${esc(it.label)}</span>${
+        it.hint ? `<small>${esc(it.hint)}</small>` : ""}</button>`).join("");
+    const dlg = $("#pick-dlg");
+    const done = (v) => { resolve(v); dlg.close(); };
+    list.querySelectorAll(".pick-row").forEach((b) =>
+      b.onclick = () => done(items[+b.dataset.i].value));
+    $("#pick-cancel").onclick = () => done(null);
+    dlg.onclose = () => resolve(null);
+    dlg.showModal();
+    list.querySelector(".pick-row")?.focus();
+  });
+}
+
+// --- chrome theme -------------------------------------------------------
+function applyChromeTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  $("#theme-btn").innerHTML = icon(t === "light" ? "moon" : "sun");
+  try { localStorage.setItem("chromeTheme", t); } catch {}
+}
+$("#theme-btn").onclick = () => {
+  const t = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+  applyChromeTheme(t);
+  // Keep terminals readable next to the new chrome. Only on an explicit toggle,
+  // so a terminal theme picked in prefs survives a reload; prefs still overrides.
+  termPrefs.theme = t === "light" ? "light" : "eazy";
+  try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
+  applyPrefs();
+};
+applyChromeTheme((() => {
+  try { return localStorage.getItem("chromeTheme") || "dark"; } catch { return "dark"; }
+})());
+
 async function api(path, opts = {}) {
   const r = await fetch(path, {
     ...opts,
@@ -44,7 +113,7 @@ $("#passwd-dlg").onclose = async () => {
   if (nw !== nw2) { toastPasswd("The two new passwords do not match"); return; }
   try {
     await api("/api/vault/change", { method: "POST", body: JSON.stringify({ old, new: nw }) });
-    alert("Master password changed. Use the new one next time you unlock.");
+    toast("Master password changed — use the new one next time you unlock.", "ok");
   } catch (err) { toastPasswd(err.message); }
 };
 // Re-open the dialog with the error, since a dialog cannot show one after it closed.
@@ -74,37 +143,68 @@ function renderTree() {
   for (const c of conns.filter((c) => (c.name + c.host + c.group).toLowerCase().includes(q)))
     (groups[c.group || "ungrouped"] ??= []).push(c);
 
+  const shown = Object.values(groups).reduce((n, l) => n + l.length, 0);
+  if (!shown) {
+    $("#tree").innerHTML = conns.length
+      ? `<div class="empty">${icon("search")}<div>No connections match &ldquo;${esc($("#filter").value)}&rdquo;</div></div>`
+      : `<div class="empty">${icon("server")}
+           <div>No connections yet</div>
+           <button class="btn primary" id="empty-new">${icon("plus")}<span>Add a connection</span></button>
+           <button class="btn ghost" id="empty-import">${icon("download")}<span>Import from ssh_config</span></button>
+         </div>`;
+    const en = $("#empty-new"), ei = $("#empty-import");
+    if (en) en.onclick = () => openEditor(null);
+    if (ei) ei.onclick = () => $("#import-btn").click();
+    return;
+  }
+
   $("#tree").innerHTML = Object.entries(groups).map(([g, list]) => {
     const gval = list[0].group || "";
     const shut = collapsed.has(gval);
     return `
     <div class="group ${shut ? "collapsed" : ""}" data-group="${esc(gval)}">
-      <div class="group-name" data-group="${esc(gval)}">
-        <span class="caret">${shut ? "&#9656;" : "&#9662;"}</span>${esc(g)}
+      <div class="group-name" data-group="${esc(gval)}" role="button" tabindex="0"
+           aria-expanded="${!shut}" aria-label="${esc(g)} group, ${list.length} connections">
+        <span class="caret">${icon("chevron-down")}</span><span>${esc(g)}</span>
         <span class="group-count">${list.length}</span>
-        <button class="group-open" data-group="${esc(gval)}" title="Open all in one tab (for broadcast)">&#9707;</button>
+        <button class="group-open" data-group="${esc(gval)}"
+                aria-label="Open all ${list.length} connections in ${esc(g)} in one tab"
+                title="Open all in one tab (for broadcast)">${icon("grid")}</button>
       </div>
       <div class="group-body">
       ${list.map((c) => `
-        <div class="conn" draggable="true" data-id="${c.id}">
-          <span class="conn-name">${esc(c.name)}</span>
-          <span class="conn-host">${esc(c.user)}@${esc(c.host)}${c.jump ? " &#8674; via " + esc(nameOf(c.jump)) : ""}${c.forwards && c.forwards.length ? " &middot; " + c.forwards.length + "&#8644;" : ""}</span>
-          <button class="sftp" data-id="${c.id}" title="Browse files (SFTP)">&#128449;</button>
-          <button class="edit" data-id="${c.id}" title="Edit">&#9998;</button>
-          <button class="del" data-id="${c.id}" title="Delete">&#10005;</button>
+        <div class="conn" draggable="true" data-id="${c.id}" role="button" tabindex="0"
+             aria-label="Open ${esc(c.name)}, ${esc(c.user)}@${esc(c.host)}">
+          ${icon(c.proto === "serial" ? "sliders" : c.proto === "telnet" ? "server" : "terminal", "conn-ic")}
+          <span class="conn-name">${esc(c.name)}${
+            c.autorun_macro ? icon("zap", "conn-badge") : ""}</span>
+          <span class="conn-host">${esc(c.user ? c.user + "@" : "")}${esc(c.host || c.serial_device || "")}${
+            c.jump ? " &#8674; " + esc(nameOf(c.jump)) : ""}${
+            c.forwards && c.forwards.length ? " &middot; " + c.forwards.length + "&#8644;" : ""}</span>
+          <span class="conn-actions">
+            <button class="sftp" data-id="${c.id}" aria-label="Browse files on ${esc(c.name)}"
+                    title="Browse files (SFTP)">${icon("folder")}</button>
+            <button class="edit" data-id="${c.id}" aria-label="Edit ${esc(c.name)}"
+                    title="Edit">${icon("edit")}</button>
+            <button class="del" data-id="${c.id}" aria-label="Delete ${esc(c.name)}"
+                    title="Delete">${icon("trash")}</button>
+          </span>
         </div>`).join("")}
       </div>
     </div>`;
   }).join("");
 
   $("#tree").querySelectorAll(".group-name").forEach((h) => {
-    h.onclick = (e) => {
-      if (e.target.closest(".group-open")) return;   // the open-all button, not collapse
+    const toggle = () => {
       const g = h.dataset.group;
       collapsed.has(g) ? collapsed.delete(g) : collapsed.add(g);
       saveCollapsed();
       h.closest(".group").classList.toggle("collapsed");
-      h.querySelector(".caret").innerHTML = collapsed.has(g) ? "&#9656;" : "&#9662;";
+      h.setAttribute("aria-expanded", String(!collapsed.has(g)));  // caret rotates via CSS
+    };
+    h.onclick = (e) => { if (!e.target.closest(".group-open")) toggle(); };
+    h.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
     };
   });
   $("#tree").querySelectorAll(".group-open").forEach((b) =>
@@ -116,13 +216,22 @@ function renderTree() {
       // Ctrl/Cmd-click splits into the current tab instead of opening a new one.
       openSession(el.dataset.id, "term", e.ctrlKey || e.metaKey);
     };
+    // Enter/Space open it; Ctrl+Enter splits. Without this the tree is
+    // mouse-only and the whole app is unusable from the keyboard.
+    el.onkeydown = (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      openSession(el.dataset.id, "term", e.ctrlKey || e.metaKey);
+    };
   });
   const on = (cls, fn) => $("#tree").querySelectorAll(cls).forEach((b) =>
     b.onclick = (e) => { e.stopPropagation(); fn(b.dataset.id, e); });
   on(".sftp", (id, e) => openSession(id, "sftp", e.ctrlKey || e.metaKey));
   on(".edit", (id) => openEditor(conns.find((c) => c.id === id)));
   on(".del", async (id) => {
-    if (!confirm("Delete this connection and its stored secrets?")) return;
+    const c = conns.find((x) => x.id === id);
+    if (!await confirmDlg(`Delete ${c ? c.name : "this connection"}?`,
+        "This also deletes its stored password or key from the vault.")) return;
     await api("/api/connections/" + id, { method: "DELETE" });
     loadTree();
   });
@@ -336,7 +445,7 @@ async function openLogs() {
     const file = row.dataset.file;
     row.querySelector(".lopen").onclick = () => openLogView(file);
     row.querySelector(".ldel").onclick = async () => {
-      if (!confirm("Delete this log?")) return;
+      if (!await confirmDlg("Delete this session log?", file)) return;
       await api("/api/logs/" + encodeURIComponent(file), { method: "DELETE" });
       openLogs();
     };
@@ -423,7 +532,7 @@ $("#editor").onclose = async () => {
   try {
     await api("/api/connections", { method: "POST", body: JSON.stringify(body) });
     loadTree();
-  } catch (err) { alert("Could not save: " + err.message); }
+  } catch (err) { toast("Could not save: " + err.message, "err"); }
 };
 
 // --- vpn ----------------------------------------------------------------
@@ -456,9 +565,9 @@ function renderVpn() {
       <span class="vpn-name"><span class="dot ${active}"></span>${esc(v.name)}</span>
       <span>
         <button class="vpn-go" data-id="${v.id}">${on || active === "connecting" ? "disconnect" : "connect"}</button>
-        <button class="vpn-log" data-id="${v.id}" title="Log">&#9776;</button>
-        <button class="vpn-edit" data-id="${v.id}" title="Edit">&#9998;</button>
-        <button class="vpn-del" data-id="${v.id}" title="Delete">&#10005;</button>
+        <button class="vpn-log" data-id="${v.id}" aria-label="VPN log for ${esc(v.name)}" title="Log">${icon("list")}</button>
+        <button class="vpn-edit" data-id="${v.id}" aria-label="Edit ${esc(v.name)}" title="Edit">${icon("edit")}</button>
+        <button class="vpn-del" data-id="${v.id}" aria-label="Delete ${esc(v.name)}" title="Delete">${icon("trash")}</button>
       </span>
       ${detail ? `<span class="vpn-detail ${active === "failed" ? "bad" : ""}">${esc(detail)}${
         on && vpnState.ip ? " &middot; " + esc(vpnState.ip) : ""}${
@@ -473,7 +582,7 @@ function renderVpn() {
       && vpnState.state !== "failed";
     try {
       await api(active ? "/api/vpn/down" : `/api/vpn/${id}/up`, { method: "POST" });
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast(err.message, "err"); }
     pollVpn();
   });
   on(".vpn-log", () => {
@@ -482,7 +591,8 @@ function renderVpn() {
   });
   on(".vpn-edit", (id) => openVpnEditor(vpns.find((v) => v.id === id)));
   on(".vpn-del", async (id) => {
-    if (!confirm("Delete this VPN profile and its stored secrets?")) return;
+    if (!await confirmDlg("Delete this VPN profile?",
+        "Its .ovpn, password and TOTP secret are removed from the vault.")) return;
     await api("/api/vpns/" + id, { method: "DELETE" });
     loadVpns();
   });
@@ -516,7 +626,7 @@ $("#vpn-editor").onclose = async () => {
   try {
     await api("/api/vpns", { method: "POST", body: JSON.stringify(body) });
     loadVpns();
-  } catch (err) { alert("Could not save: " + err.message); }
+  } catch (err) { toast("Could not save: " + err.message, "err"); }
 };
 $("#vpn-log-close").onclick = () => $("#vpn-log").close();
 
@@ -554,12 +664,12 @@ const termPanes = (tab) => (tab ? tab.panes.filter((p) => p.term) : []);
 function render() {
   const bcastN = termPanes(activeTab).length;
   const bcastBtn = activeTab && bcastN >= 2
-    ? `<button id="bcast-btn" class="${activeTab.broadcast ? "on" : ""}" title="Send your typing to all ${bcastN} terminals in this tab">&#8644; broadcast${activeTab.broadcast ? " ON" : ""}</button>`
+    ? `<button id="bcast-btn" class="${activeTab.broadcast ? "on" : ""}" aria-pressed="${!!activeTab.broadcast}" title="Send your typing to all ${bcastN} terminals in this tab">${icon("broadcast")}<span>broadcast${activeTab.broadcast ? " ON" : ""}</span></button>`
     : "";
   $("#tabbar").innerHTML = (tabs.map((t) => `
     <div class="tab ${t === activeTab ? "active" : ""} ${t.broadcast ? "bcast" : ""}" data-id="${t.id}">
       <span>${esc(t.panes.map((p) => p.title).join(" | ")) || "empty"}</span>
-      <button class="tab-close" data-id="${t.id}">&#10005;</button>
+      <button class="tab-close" data-id="${t.id}" aria-label="Close tab">${icon("x")}</button>
     </div>`).join("") || '<span class="hint">Click a connection to open a session &middot; Ctrl-click to split</span>')
     + `<span class="tabbar-spacer"></span>${bcastBtn}`;
 
@@ -641,7 +751,7 @@ function renderMacros() {
       $("#macro-form").name.value = m.name; $("#macro-form").body.value = m.body;
     };
     row.querySelector(".mdel").onclick = async () => {
-      if (!confirm(`Delete macro "${m.name}"?`)) return;
+      if (!await confirmDlg(`Delete macro "${m.name}"?`, "")) return;
       await api("/api/macros/" + encodeURIComponent(m.name), { method: "DELETE" });
       await loadMacros(); renderMacros();
     };
@@ -659,14 +769,23 @@ $("#macros-dlg").onclose = async () => {
 // Pick a macro and run it in a terminal pane (broadcasts if the tab is in cluster mode).
 async function runMacroOn(pane) {
   await loadMacros();
-  if (!macros.length) { alert('No macros yet — add one with the ⚡ button.'); return; }
+  if (!macros.length) {
+    toast("No macros yet — create one with the bolt button in the sidebar.", "err");
+    return;
+  }
   // Prefer the macros attached to this connection; fall back to all of them.
   const attached = new Set(pane.conn.macros || []);
   const choices = attached.size ? macros.filter((m) => attached.has(m.name)) : macros;
-  const name = prompt("Run which macro?\n\n" + choices.map((m) => "• " + m.name).join("\n"));
+  const tabNow = tabs.find((t) => t.panes.includes(pane));
+  const name = await pick(
+    `Run a macro on ${pane.conn.name}`,
+    tabNow && tabNow.broadcast
+      ? "Broadcast is ON — this runs on every terminal in the tab."
+      : (attached.size ? "Macros attached to this connection." : "All macros."),
+    choices.map((m) => ({ label: m.name, hint: (m.body || "").split("\n")[0].slice(0, 28), value: m.name })));
   if (!name) return;
-  const m = choices.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
-  if (!m) { alert("No macro named " + name); return; }
+  const m = choices.find((x) => x.name === name);
+  if (!m) return;
   const tab = tabs.find((t) => t.panes.includes(pane));
   const targets = tab?.broadcast ? termPanes(tab) : [pane];
   for (const p of targets) if (p.ws?.readyState === 1)
@@ -692,7 +811,7 @@ function makePane(conn, title) {
   const el = document.createElement("div");
   el.className = "pane";
   el.innerHTML = `<div class="pane-head"><span class="pane-title"></span>
-      <span class="pane-status"></span><button class="pane-close" title="Close">&#10005;</button></div>
+      <span class="pane-status"></span><button class="pane-close" aria-label="Close pane" title="Close">${icon("x")}</button></div>
     <div class="pane-body"></div>`;
   const pane = { conn, title, el, body: el.querySelector(".pane-body") };
   el.querySelector(".pane-title").textContent = title;
@@ -715,11 +834,12 @@ function openSession(cid, kind, split) {
 
 // Open every connection in a group as split terminals in one new tab, ready to
 // broadcast. A big group makes tiny panes, so confirm past a handful.
-function openGroup(gval) {
+async function openGroup(gval) {
   const list = conns.filter((c) => (c.group || "") === gval);
   if (!list.length) return;
   if (list.length > 6 &&
-      !confirm(`Open all ${list.length} connections in this group side by side?`)) return;
+      !await confirmDlg(`Open all ${list.length} connections side by side?`,
+        "That is a lot of panes at once — each one gets a narrow column.", "Open all")) return;
   const tab = newTab();
   for (const c of list) tab.panes.push(termPane(c));
   activeTab = tab;
@@ -729,7 +849,8 @@ function openGroup(gval) {
 function termPane(conn) {
   const pane = makePane(conn, conn.name);
   const mbtn = document.createElement("button");
-  mbtn.className = "pane-macro"; mbtn.textContent = "\u26a1"; mbtn.title = "Run a macro";
+  mbtn.className = "pane-macro"; mbtn.innerHTML = icon("zap");
+  mbtn.title = "Run a macro"; mbtn.setAttribute("aria-label", "Run a macro on this connection");
   mbtn.onclick = () => runMacroOn(pane);
   pane.el.querySelector(".pane-head").insertBefore(mbtn, pane.el.querySelector(".pane-close"));
   const term = new Terminal(termOptions());
@@ -838,7 +959,7 @@ function sftpPane(conn) {
   function draw(rows, absolute) {
     list.innerHTML = rows.map((e, i) => `
       <div class="row" data-i="${i}">
-        <span class="fname">${e.dir ? "&#128449;" : "&#128462;"} ${esc(e.name)}</span>
+        <span class="fname">${icon(e.dir ? "folder" : "file-text")}${esc(e.name)}</span>
         <span class="fsize">${e.dir ? "" : human(e.size)}</span>
       </div>`).join("") || '<div class="hint">nothing here</div>';
     list.querySelectorAll(".row").forEach((el) => {

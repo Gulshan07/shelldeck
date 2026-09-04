@@ -1,12 +1,46 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EazyConnector</title>
 <link rel="stylesheet" href="/static/vendor/xterm.css">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <defs>
+    <g id="i-terminal"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></g>
+    <g id="i-folder"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2z"/></g>
+    <g id="i-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></g>
+    <g id="i-trash"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></g>
+    <g id="i-plus"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></g>
+    <g id="i-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></g>
+    <g id="i-upload"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></g>
+    <g id="i-zap"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></g>
+    <g id="i-file-text"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></g>
+    <g id="i-sliders"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></g>
+    <g id="i-help"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></g>
+    <g id="i-chevron-right"><polyline points="9 18 15 12 9 6"/></g>
+    <g id="i-chevron-down"><polyline points="6 9 12 15 18 9"/></g>
+    <g id="i-grid"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></g>
+    <g id="i-broadcast"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></g>
+    <g id="i-x"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></g>
+    <g id="i-lock"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></g>
+    <g id="i-key"><path d="M12.65 10a5.5 5.5 0 1 0-7.78 7.78A5.5 5.5 0 0 0 12.65 10zM13 9l6-6 2 2-2 2 2 2-3 3-2-2"/></g>
+    <g id="i-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></g>
+    <g id="i-list"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></g>
+    <g id="i-play"><polygon points="6 3 20 12 6 21 6 3"/></g>
+    <g id="i-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g>
+    <g id="i-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></g>
+    <g id="i-server"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></g>
+    <g id="i-search"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></g>
+    <g id="i-arrow-up"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></g>
+    <g id="i-check"><polyline points="20 6 9 17 4 12"/></g>
+    <g id="i-alert"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></g>
+  </defs>
+</svg>
 
 <div id="gate" class="gate">
   <form id="unlock-form">
@@ -20,24 +54,45 @@
 
 <div id="app" hidden>
   <aside>
-    <div class="side-head">
-      <strong>Connections</strong>
-      <button id="help-btn" title="Help (F1)">?</button>
-      <button id="import-btn" title="Import from ssh_config or Ásbrú">&#8681;</button>
-      <button id="logs-btn" title="Session logs">&#128220;</button>
-      <button id="prefs-btn" title="Terminal appearance">&#9881;</button>
-      <button id="macros-btn" title="Macros">&#9889;</button>
-      <button id="new-btn" title="New connection">+</button>
+    <div class="brand">
+      <svg class="ic brand-mark" viewBox="0 0 24 24"><use href="#i-terminal"/></svg>
+      <span class="brand-name">EazyConnector</span>
+      <button id="theme-btn" class="icon-btn" aria-label="Switch between light and dark theme"
+              title="Light / dark theme"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sun"/></svg></button>
     </div>
-    <input id="filter" placeholder="Search…">
+    <div class="toolbar">
+      <button id="new-btn" class="btn primary" title="New connection">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg><span>New</span></button>
+      <span class="tool-gap"></span>
+      <button id="import-btn" class="icon-btn" aria-label="Import connections from ssh_config or Ásbrú"
+              title="Import connections"><svg class="ic" viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
+      <button id="macros-btn" class="icon-btn" aria-label="Macros"
+              title="Macros"><svg class="ic" viewBox="0 0 24 24"><use href="#i-zap"/></svg></button>
+      <button id="logs-btn" class="icon-btn" aria-label="Session logs"
+              title="Session logs"><svg class="ic" viewBox="0 0 24 24"><use href="#i-file-text"/></svg></button>
+      <button id="prefs-btn" class="icon-btn" aria-label="Terminal appearance"
+              title="Terminal appearance"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sliders"/></svg></button>
+      <button id="help-btn" class="icon-btn" aria-label="Help (F1)"
+              title="Help (F1)"><svg class="ic" viewBox="0 0 24 24"><use href="#i-help"/></svg></button>
+    </div>
+    <div class="search-wrap">
+      <svg class="ic search-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="filter" placeholder="Search connections…" aria-label="Search connections">
+    </div>
     <div id="tree"></div>
     <div id="vpn-box">
-      <div class="side-head"><strong>VPN</strong><button id="new-vpn-btn" title="Add VPN profile">+</button></div>
+      <div class="side-head">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg>
+        <strong>VPN</strong>
+        <button id="new-vpn-btn" class="icon-btn" aria-label="Add VPN profile" title="Add VPN profile"><svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg></button>
+      </div>
       <div id="vpn-list"></div>
     </div>
     <div class="vault-actions">
-      <button id="passwd-btn" class="lock" title="Change the master password">Change password</button>
-      <button id="lock-btn" class="lock">Lock vault</button>
+      <button id="passwd-btn" class="btn ghost" title="Change the master password">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-key"/></svg><span>Password</span></button>
+      <button id="lock-btn" class="btn ghost" title="Lock the vault">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-lock"/></svg><span>Lock</span></button>
     </div>
   </aside>
   <main>
@@ -46,6 +101,24 @@
   </main>
   <div id="resizer" title="Drag to resize"></div>
 </div>
+
+<div id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<dialog id="confirm-dlg">
+  <h2 id="confirm-title">Are you sure?</h2>
+  <p class="note" id="confirm-body"></p>
+  <menu>
+    <button id="confirm-no" class="btn ghost">Cancel</button>
+    <button id="confirm-yes" class="btn danger">Delete</button>
+  </menu>
+</dialog>
+
+<dialog id="pick-dlg">
+  <h2 id="pick-title">Run a macro</h2>
+  <p class="note" id="pick-note"></p>
+  <div id="pick-list"></div>
+  <menu><button id="pick-cancel" class="btn ghost">Cancel</button></menu>
+</dialog>
 
 <dialog id="editor">
   <form method="dialog" id="conn-form">
@@ -88,7 +161,7 @@
     </label>
     <details class="macros-attach"><summary>Macros for this connection</summary>
       <p class="note">Tick macros to attach to this server; pick one to run automatically on connect
-        (e.g. log into mysql). Manage macro bodies with the &#9889; button in the sidebar.</p>
+        (e.g. log into mysql). Manage macro bodies with the <b>bolt</b> button in the sidebar.</p>
       <div id="attach-list"></div>
       <label>Run on connect
         <select name="autorun_macro"><option value="">— none —</option></select>
@@ -182,7 +255,7 @@
 <dialog id="log-view">
   <h2 id="log-view-name"></h2>
   <div class="log-view-bar">
-    <button id="log-play">&#9654; Play recording</button>
+    <button id="log-play" class="btn primary"><svg class="ic" viewBox="0 0 24 24"><use href="#i-play"/></svg><span>Play recording</span></button>
     <label>Speed
       <select id="log-speed"><option value="1">1&times;</option><option value="2">2&times;</option>
         <option value="4">4&times;</option><option value="8">8&times;</option></select>
@@ -293,9 +366,9 @@
     <table>
       <tr><td><b>+</b> (top of the list)</td><td>add a connection: name, host, user, and either a
         password or a private key (paste it or pick the file)</td></tr>
-      <tr><td>&#8681; import</td><td>pull in everything from <code>~/.ssh/config</code> or Ásbrú at
+      <tr><td><b>Import</b> (download icon)</td><td>pull in everything from <code>~/.ssh/config</code> or Ásbrú at
         once — grouped, with jump hosts linked. Passwords are never read; you review a preview first.</td></tr>
-      <tr><td>&#9998; / &#10005;</td><td>edit or delete a connection</td></tr>
+      <tr><td><b>pencil</b> / <b>bin</b> on a row</td><td>edit or delete a connection</td></tr>
     </table>
   </section>
 
@@ -304,7 +377,7 @@
     <table>
       <tr><td><b>Click</b> a connection</td><td>opens a terminal in a new tab</td></tr>
       <tr><td><kbd>Ctrl</kbd> + click</td><td>opens it <b>beside</b> the current one (split view)</td></tr>
-      <tr><td>&#128449; icon</td><td>opens a file browser (SFTP) instead of a terminal</td></tr>
+      <tr><td><b>folder</b> icon on a row</td><td>opens a file browser (SFTP) instead of a terminal</td></tr>
       <tr><td>First time to a host</td><td>you confirm its fingerprint once, then it's trusted</td></tr>
     </table>
   </section>
@@ -316,6 +389,9 @@
       <tr><td><b>Click</b> a group header</td><td>collapse or expand it</td></tr>
       <tr><td>Search box</td><td>filter the whole list as you type</td></tr>
       <tr><td><b>Drag</b> the sidebar's right edge</td><td>make the list wider or narrower (double-click the edge to reset)</td></tr>
+      <tr><td><b>Tab</b> / <kbd>Enter</kbd></td><td>the whole list is keyboard-navigable — Tab to a
+        connection and press Enter to open it (Ctrl+Enter to split)</td></tr>
+      <tr><td><b>sun / moon</b> (top right)</td><td>switch the whole app between light and dark</td></tr>
     </table>
   </section>
 
@@ -327,14 +403,14 @@
   </section>
 
   <section>
-    <h3>6. Broadcast to many servers (clusters)</h3>
+    <h3>6. Automation: macros &amp; broadcast</h3>
     <p><b>Attach macros to a server:</b> in a connection's editor, open "Macros for this connection",
     tick the macros it should offer, and optionally pick one to <b>run on connect</b> — so opening
     that server can log you straight into mysql, sudo to root, etc. (like Ásbrú's Expect &amp;
-    Execute). A server's own macros are what its &#9889; button lists.</p>
-    <p>Fastest way: hover a group header and click <b>&#9707;</b> to open <b>every server in that
+    Execute). A server's own macros are what its <b>bolt</b> button lists.</p>
+    <p>Fastest way: hover a group header and click the <b>grid</b> button to open <b>every server in that
     group</b> side by side in one tab. (Or open them yourself with <kbd>Ctrl</kbd>-click.) Then click
-    <b>&#8644; broadcast</b> in the tab bar — now what you type goes to <b>every</b> terminal in that
+    <b>broadcast</b> in the tab bar — now what you type goes to <b>every</b> terminal in that
     tab at once, so one command runs across the whole fleet. Broadcasting panes get a red outline so
     you always know it's on. Click it again to stop.</p>
   </section>
@@ -363,7 +439,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <p>Add a VPN profile with <b>+</b> next to VPN: pick your <code>.ovpn</code> file, enter the
     username, password and your <b>authenticator secret</b> (the base32 setup string, not the 6-digit
     code). Then <b>connect</b> — the code is generated and answered for you. A green dot shows it's up
-    with the assigned IP; &#9776; shows the log. Needs OpenVPN installed
+    with the assigned IP; the <b>list</b> button shows the log. Needs OpenVPN installed
     (<code>sudo apt install openvpn</code>).</p>
   </section>
 
@@ -371,7 +447,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <h3>10. Session logs</h3>
     <p>Tick <b>Record an encrypted session log</b> in a connection's editor to save everything that
     happens in its terminal. Logs are encrypted with your vault (they can contain passwords typed on
-    screen), and the &#128220; button lists, opens and deletes them.</p>
+    screen), and the <b>document</b> button in the sidebar lists, opens and deletes them.</p>
   </section>
 
   <section>
@@ -379,7 +455,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <table>
       <tr><td>Editor &rarr; Advanced</td><td>run a command locally before connecting, a command on the
         server right after login, a command locally after disconnecting; set the keepalive interval</td></tr>
-      <tr><td>&#9881; (top of the list)</td><td>terminal theme, font size and family</td></tr>
+      <tr><td><b>sliders</b> (top of the sidebar)</td><td>terminal theme, font size and family</td></tr>
     </table>
   </section>
 
