@@ -148,15 +148,15 @@ logs/         0700   encrypted session recordings
 
 ## Platform support
 
-Every push builds on all three platforms in CI and each binary must pass
-`packaging/smoke.py`, which launches it and checks it serves, bundles its
-assets and enforces its auth token.
+There is a three-OS build workflow, run on demand from the Actions tab, in
+which each binary must pass `packaging/smoke.py` — it launches the binary and
+checks it serves, bundles its assets and enforces its auth token.
 
 | | Status |
 |---|---|
 | **Linux** | Supported and used daily. AppImage provided. |
-| **Windows** | Builds and smoke-passes in CI, and the OS-specific paths are implemented — ACL-based file locking via `icacls`, admin detection, and OpenVPN found in `Program Files`. Not yet exercised against real servers by a human, so treat it as beta and please report what breaks. The VPN needs the app run **as Administrator** (Windows has no `sudo` to pipe a password to) and the app says so rather than failing obscurely. |
-| **macOS** | Builds and smoke-passes in CI. It is POSIX, so the Linux paths apply unchanged. Unsigned, so Gatekeeper will warn until someone signs it. |
+| **Windows** | The OS-specific paths are implemented — ACL-based file locking via `icacls`, admin detection, and OpenVPN found in `Program Files` — but no Windows binary has been through the smoke test yet, so treat it as untested and please report what breaks. Build it yourself with `pyinstaller --clean -y eazyconnector.spec`. The VPN needs the app run **as Administrator** (Windows has no `sudo` to pipe a password to) and the app says so rather than failing obscurely. |
+| **macOS** | Untested. It is POSIX, so the Linux paths should apply unchanged. Unsigned, so Gatekeeper will warn until someone signs it. |
 
 Contributions for macOS/Windows are very welcome — see
 [PACKAGING.md](PACKAGING.md).

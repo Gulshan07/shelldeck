@@ -5,11 +5,11 @@ name: build
 # which launches the binary and checks it serves, bundles its assets and
 # enforces its token.
 
+# Manual only for now. This repo is private, so Actions minutes are metered and
+# macOS bills at 10x — a run on every push is not worth that. Start one from the
+# Actions tab ("Run workflow") when a build is actually wanted. To go back to
+# building on every push, restore the push/pull_request triggers below.
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 jobs:
