@@ -381,6 +381,10 @@
       <tr><td><b>Import</b> (download icon)</td><td>pull in everything from <code>~/.ssh/config</code> or Ásbrú at
         once — grouped, with jump hosts linked. Passwords are never read; you review a preview first.</td></tr>
       <tr><td><b>pencil</b> / <b>bin</b> on a row</td><td>edit or delete a connection</td></tr>
+      <tr><td><b>Protocol</b> (in the editor)</td><td><b>SSH</b> (default) &middot; <b>Telnet</b> for
+        network gear — host and port only, no key or user &middot; <b>Serial</b> for a console cable —
+        give it the device (e.g. <code>/dev/ttyUSB0</code>) and baud rate instead of a host. The form
+        shows only the fields that protocol needs. Logging and macros work on all three.</td></tr>
       <tr><td><b>Export…</b> (in Import)</td><td>saves a JSON file of your connections, groups, jump
         links and forwarding rules to hand to a colleague. It contains <b>no</b> passwords, keys,
         passphrases, TOTP secrets, VPN profiles or macro bodies — only the key-file <i>paths</i>, so
@@ -398,6 +402,10 @@
       <tr><td><kbd>Ctrl</kbd> + click</td><td>opens it <b>beside</b> the current one (split view)</td></tr>
       <tr><td><b>folder</b> icon on a row</td><td>opens a file browser (SFTP) instead of a terminal</td></tr>
       <tr><td>First time to a host</td><td>you confirm its fingerprint once, then it's trusted</td></tr>
+      <tr><td>a small <b>bolt</b> next to a name</td><td>that connection runs a macro automatically
+        when it opens (see Automation below)</td></tr>
+      <tr><td>a key owned by <code>root</code></td><td>you are asked for your sudo password once, the
+        key is then cached encrypted and never asked for again</td></tr>
     </table>
   </section>
 
@@ -467,6 +475,16 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <p>Tick <b>Record an encrypted session log</b> in a connection's editor to save everything that
     happens in its terminal. Logs are encrypted with your vault (they can contain passwords typed on
     screen), and the <b>document</b> button in the sidebar lists, opens and deletes them.</p>
+    <table>
+      <tr><td><b>open</b> on a log</td><td>decrypts it and shows the whole session as text</td></tr>
+      <tr><td><b>Play recording</b></td><td>replays the session in a terminal at the speed it
+        originally happened — the timing of every chunk is stored, so it plays back like a recording
+        rather than a dump. Long idle gaps are shortened so it stays watchable.</td></tr>
+      <tr><td><b>Speed</b> 1&times;&ndash;8&times;</td><td>fast-forward the replay</td></tr>
+      <tr><td><b>delete</b></td><td>removes that log permanently</td></tr>
+    </table>
+    <p class="note">Logs live in <code>~/.eazyconnector/logs/*.eclog</code>, capped at 50&nbsp;MB per
+    session. They are only readable while your vault is unlocked.</p>
   </section>
 
   <section>
@@ -484,6 +502,10 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
       <tr><td><kbd>F1</kbd></td><td>this help</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>previous / next tab</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>close any dialog</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>move through the connection list and every control</td></tr>
+      <tr><td><kbd>Enter</kbd> on a connection</td><td>open it &mdash; <kbd>Ctrl</kbd>+<kbd>Enter</kbd>
+        opens it beside the current one instead</td></tr>
+      <tr><td><kbd>Enter</kbd> on a group header</td><td>collapse or expand that group</td></tr>
     </table>
   </section>
 
