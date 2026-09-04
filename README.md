@@ -183,10 +183,7 @@ cross-platform story in [PACKAGING.md](PACKAGING.md).
 
 ## Licence
 
-Not yet chosen — **this repository has no licence file, which means default
-copyright applies and others have no right to use or redistribute it.** A
-licence (MIT and Apache-2.0 are the usual choices) needs to be added before
-this is meaningfully open source.
+[MIT](LICENSE) — use it, fork it, ship it.
 
 ## Acknowledgements
 
@@ -196,3 +193,7 @@ this is meaningfully open source.
   `eazyconnector/static/vendor/`.
 - [AsyncSSH](https://asyncssh.readthedocs.io/) — the SSH implementation doing
   the real work.
+
+---
+
+MIT · PRs and issues welcome · ⭐ it if it saved you a weekend
