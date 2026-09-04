@@ -164,6 +164,8 @@ Contributions for macOS/Windows are very welcome — see
 ## Development
 
 ```bash
+.venv/bin/pip install -e ".[import,serial,test]"   # test extra = httpx, for the suites
+
 .venv/bin/python test_p0.py       # vault crypto, file modes, TOTP vectors, parsers
 .venv/bin/python test_e2e.py      # full stack against an in-process sshd
 .venv/bin/python test_live.py     # real uvicorn + WebSocket + SFTP + import/export
