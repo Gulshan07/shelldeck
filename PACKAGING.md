@@ -39,16 +39,55 @@ is shared, nothing is sent anywhere.
 
 ## Building all three from one push
 
-`.github/workflows/build.yml` does this on every push: the test suites run on
-Linux, then a matrix builds on ubuntu / windows / macos runners. Each built
+`.github/workflows/build.yml` does this, started by hand from the Actions tab
+("Run workflow"): the test suites run on Linux, then a matrix builds on
+ubuntu / windows / macos runners. Each built
 binary must pass `packaging/smoke.py` — it launches the artifact, waits for it to
 bind, and asserts the index serves, the bundled `xterm.js` is present, an
 unauthenticated API call gets 401 and an authenticated one gets 200. A build that
 compiles but cannot run therefore fails the pipeline.
 
-Artifacts are uploaded per platform. Pushing a `v*` tag additionally creates a
-GitHub Release and attaches them, which is how the download link in the README
-gets populated.
+Artifacts are uploaded per platform. Dispatching the workflow against a `v*`
+tag additionally creates a GitHub Release and attaches them, which is how the
+download link in the README gets populated.
+
+It is manual-dispatch only because the repository is private, where Actions
+minutes are metered and macOS bills at 10x. Once the repository is public,
+Actions is free on standard runners and the `push:` / `pull_request:` triggers
+are worth restoring so incoming PRs get tested.
+
+## Building and testing on Windows
+
+From a clean Windows box with Python 3.10+ and Git installed:
+
+```powershell
+git clone https://github.com/Gulshan07/EazyConnector.git
+cd EazyConnector
+py -m venv .venv
+.venv\Scripts\python -m pip install -e ".[build,import,serial,test]"
+
+.venv\Scripts\python test_p0.py          # start here; pure crypto and parsers
+.venv\Scripts\pyinstaller --clean -y eazyconnector.spec
+.venv\Scripts\python packaging\smoke.py dist\EazyConnector.exe
+```
+
+`smoke.py` passing means the binary launches, serves, bundles its assets and
+enforces its token. It does not exercise the Windows-specific paths, so check
+these by hand — each maps to code that has never run on real Windows:
+
+1. **The vault survives a restart.** Create it, add a connection, quit, relaunch,
+   unlock. A failure here means the `O_BINARY` guard is wrong and CRLF
+   translation corrupted the AES-GCM blob.
+2. **File permissions.** `icacls %USERPROFILE%\.eazyconnector\vault.enc` should
+   list your user only, with inheritance broken.
+3. **VPN without Administrator.** Starting a VPN unelevated must show the "run as
+   Administrator" message, not an obscure openvpn failure.
+4. **SSH, including through a jump host.** The core path, unchanged from Linux,
+   but confirm host-key prompts and known_hosts write correctly.
+5. **A serial connection** on a `COM3`-style device, if any hardware is to hand.
+
+Report what breaks — none of the above has been verified by a human yet, which
+is why the README calls Windows untested.
 
 ## Windows specifics
 
