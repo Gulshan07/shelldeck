@@ -65,7 +65,7 @@ Connections reference `cred_id`. One credential reusable across many hosts.
 - SSH terminal with password or key auth, xterm.js, resize, reconnect.
 - **Verify:** SSH into a real server, run `top`, resize window, close cleanly.
 
-### P1 — Ásbrú parity, daily-driver  (tabs, splits, jump hosts, forwarding, SFTP done; import + session logging left)
+### P1 — Ásbrú parity, daily-driver  ✅ done except PuTTY session import and Wake-on-LAN
 - Tabs + split panes.
 - Jump/proxy hosts (chained connections).
 - Port forwarding: local `-L`, remote `-R`, dynamic SOCKS `-D`, per connection, auto-start on connect.
@@ -102,7 +102,7 @@ Dynamic-challenge case: server answers `>PASSWORD:Verification Failed: 'Auth' ['
 - Auto-connect VPN before any connection tagged as needing it; disconnect when the last one closes (optional).
 - **Verify:** one click → connected with no typing, on a real corporate profile.
 
-### P3 — Power features
+### P3 — Power features  ✅ done
 - Clusters: type once, send to N terminals.
 - Macros / expect-send scripts (auto-sudo, auto-enable on network gear).
 - Serial + Telnet.
