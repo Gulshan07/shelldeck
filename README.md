@@ -1,5 +1,10 @@
 # EazyConnector
 
+[![Release](https://img.shields.io/github/v/release/Gulshan07/EazyConnector?color=4c8dff)](https://github.com/Gulshan07/EazyConnector/releases)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-4c8dff)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux-4c8dff)](#platform-support)
+[![Python](https://img.shields.io/badge/python-3.10%2B-4c8dff)](pyproject.toml)
+
 A connection manager for people who live in terminals — SSH, SFTP, Telnet and
 serial consoles, an encrypted local vault, and one-click VPN with automatic
 two-factor. It runs as a small local server and uses your browser as the UI, so
@@ -8,6 +13,12 @@ the same build works on any machine that runs Python.
 ![EazyConnector](docs/screenshot.png)
 
 *Two servers open side by side with **broadcast** on — one `uptime`, both hosts.*
+
+<details><summary>Light theme</summary>
+
+![EazyConnector in light theme](docs/screenshot-light.png)
+
+</details>
 
 ---
 
@@ -71,7 +82,8 @@ model below.
 ### Linux — download and run
 
 Grab `EazyConnector-x86_64.AppImage` from the
-[releases](../../releases), then:
+[latest release](https://github.com/Gulshan07/EazyConnector/releases/latest),
+then:
 
 ```bash
 chmod +x EazyConnector-x86_64.AppImage
@@ -137,6 +149,10 @@ assume a hostile local neighbour:
 - **Exports contain no secrets** — no passwords, keys, passphrases, TOTP
   secrets, VPN profiles or macro bodies.
 
+Found a hole? **Please do not open a public issue** — see
+[SECURITY.md](SECURITY.md) for private reporting, the threat model, and the
+handful of design decisions that look like flaws and are deliberate.
+
 Everything lives in `~/.eazyconnector/`:
 
 ```
@@ -148,19 +164,19 @@ logs/         0700   encrypted session recordings
 
 ## Platform support
 
-There is a three-OS build workflow, run on demand from the Actions tab, in
-which each binary must pass `packaging/smoke.py` — it launches the binary and
-checks it serves, bundles its assets and enforces its auth token.
+**Linux is the only platform released.** Every build must pass
+`packaging/smoke.py`, which launches the binary and checks that it serves, that
+it bundles its assets, and that it rejects an unauthenticated request.
 
 | | Status |
 |---|---|
-| **Linux** | Supported and used daily. AppImage provided. |
-| **Windows** | The OS-specific paths are implemented — ACL-based file locking via `icacls`, admin detection, and OpenVPN found in `Program Files` — but no Windows binary has been through the smoke test yet, so treat it as untested and please report what breaks. Build it yourself with `pyinstaller --clean -y eazyconnector.spec`. The VPN needs the app run **as Administrator** (Windows has no `sudo` to pipe a password to) and the app says so rather than failing obscurely. |
-| **macOS** | Untested. It is POSIX, so the Linux paths should apply unchanged. Unsigned, so Gatekeeper will warn until someone signs it. |
+| **Linux** | **Released.** Used daily on Ubuntu. AppImage provided. |
+| **Windows** | Code written, **not released**. The OS-specific paths exist — ACLs via `icacls`, `O_BINARY` so the encrypted vault is not corrupted by newline translation, admin detection, OpenVPN found in `Program Files` — but none of it has ever run on real Windows. Build it yourself with the instructions in [PACKAGING.md](PACKAGING.md) if you want to help. The VPN will need the app run **as Administrator**, since Windows has no `sudo` to pipe a password to. |
+| **macOS** | Code written, **not released**. It is POSIX, so the Linux paths should apply unchanged, but nobody has run it. Unsigned, so Gatekeeper will warn until someone signs it. |
 
-Contributions for macOS/Windows are very welcome — see
-[PACKAGING.md](PACKAGING.md) for the packaging story and
-[CONTRIBUTING.md](CONTRIBUTING.md) for how to send a change.
+Getting either of those to a release is the most useful thing a contributor
+could do right now — see [PACKAGING.md](PACKAGING.md) for the packaging story
+and [CONTRIBUTING.md](CONTRIBUTING.md) for how to send a change.
 
 ## Contributing
 
@@ -187,7 +203,8 @@ They are plain scripts — no framework, no fixtures. Run them directly rather
 than piping through `tail`, which hides output if one hangs.
 
 Architecture and design decisions are in [PLAN.md](PLAN.md); packaging and the
-cross-platform story in [PACKAGING.md](PACKAGING.md).
+cross-platform story in [PACKAGING.md](PACKAGING.md); what changed per release
+in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 

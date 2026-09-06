@@ -1,15 +1,15 @@
 name: build
 
-# Windows and macOS have no developer machine behind them here, so CI is the
-# verification: each build runs on that OS and must survive packaging/smoke.py,
-# which launches the binary and checks it serves, bundles its assets and
-# enforces its token.
+# Linux is the only platform released, so it is the only one built here. The
+# Windows and macOS code paths exist but have never run on those systems; when
+# someone verifies one, add it back to the matrix below (an `os:` entry and its
+# binary name is all it takes) and release it.
 
-# Manual only for now. This repo is private, so Actions minutes are metered and
-# macOS bills at 10x — a run on every push is not worth that. Start one from the
-# Actions tab ("Run workflow") when a build is actually wanted. To go back to
-# building on every push, restore the push/pull_request triggers below.
 on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -47,12 +47,6 @@ jobs:
         include:
           - os: ubuntu-latest
             label: linux
-            binary: dist/EazyConnector
-          - os: windows-latest
-            label: windows
-            binary: dist/EazyConnector.exe
-          - os: macos-latest
-            label: macos
             binary: dist/EazyConnector
     runs-on: ${{ matrix.os }}
     steps:
@@ -96,7 +90,6 @@ jobs:
           name: EazyConnector-${{ matrix.label }}
           path: |
             dist/EazyConnector
-            dist/EazyConnector.exe
             dist/EazyConnector-x86_64.AppImage
             dist/HOW-TO-RUN.txt
           if-no-files-found: error
