@@ -13,7 +13,7 @@ labels: bug
 2.
 
 **Environment**
-- EazyConnector version or commit:
+- Shelldeck version or commit:
 - Installed as: AppImage / from source / built binary
 - OS and version:
 - Browser:

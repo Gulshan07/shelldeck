@@ -3,10 +3,10 @@ import os
 import stat
 import tempfile
 
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 
-from eazyconnector import store  # noqa: E402
-from eazyconnector.server import _origin_ok  # noqa: E402
+from shelldeck import store  # noqa: E402
+from shelldeck.server import _origin_ok  # noqa: E402
 
 
 def test_vault_roundtrip():
@@ -38,7 +38,7 @@ def test_vault_roundtrip():
 
 
 def test_rekey_master_password():
-    from eazyconnector import store as st
+    from shelldeck import store as st
     import tempfile
     st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
     st.VAULT = st.HOME / "vault.enc"
@@ -71,7 +71,7 @@ def test_rekey_master_password():
 
 def test_session_log_encrypted_roundtrip():
     import tempfile
-    from eazyconnector import store as st, session_log as sl
+    from shelldeck import store as st, session_log as sl
     st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
     st.LOGS = st.HOME / "logs"
     v = st.Vault(); v.create("logpw-eight")
@@ -108,7 +108,7 @@ def test_session_log_encrypted_roundtrip():
 
 def test_session_log_cap():
     import tempfile
-    from eazyconnector import store as st, session_log as sl
+    from shelldeck import store as st, session_log as sl
     st.HOME = st.Path(tempfile.mkdtemp()); st.HOME.chmod(0o700)
     st.LOGS = st.HOME / "logs"
     v = st.Vault(); v.create("logpw-eight")
@@ -125,7 +125,7 @@ def test_session_log_cap():
 
 def test_log_path_traversal_blocked():
     import tempfile
-    from eazyconnector import store as st, server
+    from shelldeck import store as st, server
     st.LOGS = st.Path(tempfile.mkdtemp())
     server.store.LOGS = st.LOGS
     assert server._log_path("../../etc/passwd") is None
@@ -149,7 +149,7 @@ def test_known_hosts_entries_actually_match():
     """A "[host]:22" line parses fine but matches nothing, so the host stays
     untrusted and re-prompts forever. Port 22 is the case that broke."""
     import asyncssh
-    from eazyconnector.server import known_hosts_entry
+    from shelldeck.server import known_hosts_entry
 
     key = asyncssh.generate_private_key("ssh-ed25519")
     path = store.HOME / "kh_test"
@@ -169,7 +169,7 @@ def test_known_hosts_entries_actually_match():
 
 
 def test_macro_parse():
-    from eazyconnector.macros import parse
+    from shelldeck.macros import parse
     steps = parse("send sudo -i\nexpect password:\nsend secret\nsleep 2\n# comment\n\nbare line")
     assert steps == [
         ("send", "sudo -i\n"),
@@ -197,7 +197,7 @@ def test_macro_expect_regex():
     """expect is regex (Ásbrú-style), so a shell prompt matches; a bad pattern
     falls back to literal so it never crashes."""
     import asyncio
-    from eazyconnector.macros import run
+    from shelldeck.macros import run
 
     async def go():
         recent = bytearray(b"ubuntu@web-01:~$ ")           # a real-ish prompt
@@ -218,7 +218,7 @@ def test_macro_expect_regex():
 
 
 def test_parse_forward():
-    from eazyconnector.server import parse_forward
+    from shelldeck.server import parse_forward
 
     assert parse_forward("L 8080:localhost:3306") == ("L", 8080, "localhost", 3306)
     assert parse_forward("R 9090:10.0.0.1:22") == ("R", 9090, "10.0.0.1", 22)
@@ -237,7 +237,7 @@ def test_parse_forward():
 def test_totp_rfc6238():
     """RFC 6238 Appendix B test vectors (SHA-1, 8 digits, seed "12345678901234567890")."""
     import base64
-    from eazyconnector.vpn import totp
+    from shelldeck.vpn import totp
 
     seed = base64.b32encode(b"12345678901234567890").decode()
     for when, expected in [(59, "94287082"), (1111111109, "07081804"), (1111111111, "14050471"),
@@ -257,7 +257,7 @@ def test_totp_rfc6238():
 
 def test_vpn_password_dialects():
     import base64
-    from eazyconnector.vpn import build_password, detect_dialect
+    from shelldeck.vpn import build_password, detect_dialect
 
     assert build_password("concat", "hunter2", "123456") == "hunter2123456"
     scrv1 = build_password("scrv1", "hunter2", "123456")
@@ -276,12 +276,12 @@ def test_vpn_password_dialects():
 
 
 def test_management_quoting():
-    from eazyconnector.vpn import _esc
+    from shelldeck.vpn import _esc
     assert _esc('pa"ss\\word') == 'pa\\"ss\\\\word'
 
 
 def test_import_ssh_config():
-    from eazyconnector.importers import from_ssh_config
+    from shelldeck.importers import from_ssh_config
 
     conns, warnings = from_ssh_config(
         "Host bastion\n  HostName 10.0.0.1\n  User ubuntu\n  IdentityFile ~/k.pem\n"
@@ -299,7 +299,7 @@ def test_import_ssh_config():
 
 
 def test_import_asbru():
-    from eazyconnector.importers import from_asbru
+    from shelldeck.importers import from_asbru
 
     data = {"environments": {
         "g1": {"_is_group": True, "name": "PROD", "parent": "__PAC__ROOT__"},
@@ -330,7 +330,7 @@ def test_import_asbru():
 
 def test_export_bundle_carries_no_secrets():
     """The whole point of the export is that it is safe to hand to a colleague."""
-    from eazyconnector.importers import to_bundle, SHAREABLE
+    from shelldeck.importers import to_bundle, SHAREABLE
     import json as _json
 
     conns = [
@@ -365,7 +365,7 @@ def test_export_bundle_carries_no_secrets():
 
 
 def test_bundle_round_trip_relinks_jump_by_name():
-    from eazyconnector.importers import to_bundle, from_bundle
+    from shelldeck.importers import to_bundle, from_bundle
 
     conns = [
         {"id": "x", "name": "bastion", "group": "g", "host": "10.0.0.1", "port": 22,
@@ -396,7 +396,7 @@ def test_bundle_round_trip_relinks_jump_by_name():
     assert any("bastion" in w and "not in this file" in w for w in warns2)
 
     # junk is refused
-    for bad in ({}, {"connections": []}, {"eazyconnector_export": 99}):
+    for bad in ({}, {"connections": []}, {"shelldeck_export": 99}):
         try:
             from_bundle(bad)
             raise AssertionError(f"should have refused {bad}")
@@ -408,7 +408,7 @@ def test_import_unreadable_key_stays_key_auth():
     """A key file that exists but cannot be read must not become a silent
     empty-password connection; it stays key-auth and fails loudly at connect."""
     import os, tempfile, stat
-    from eazyconnector.importers import from_asbru
+    from shelldeck.importers import from_asbru
 
     kf = tempfile.mktemp(suffix=".pem")
     open(kf, "w").write("KEY")
@@ -420,6 +420,36 @@ def test_import_unreadable_key_stays_key_auth():
     assert c["auth"] == "key" and c["_keyfile"] == kf, \
         "an unreadable key must stay key-auth so the failure is visible, not fall to password"
     os.chmod(kf, 0o600); os.unlink(kf)
+
+
+def test_vault_dir_falls_back_to_the_old_name():
+    """A vault made when the project was EazyConnector must keep opening.
+
+    Only the master password can decrypt it, so pointing at a fresh empty
+    ~/.shelldeck would look exactly like data loss to the person it happens to.
+    """
+    from pathlib import Path
+    real_home, real_env = Path.home, os.environ.pop("SHELLDECK_HOME", None)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            Path.home = staticmethod(lambda: Path(tmp))
+
+            (Path(tmp) / ".eazyconnector").mkdir()
+            assert store._home().name == ".eazyconnector", \
+                "an existing pre-rename vault directory must still be used"
+
+            (Path(tmp) / ".shelldeck").mkdir()
+            assert store._home().name == ".shelldeck", \
+                "once the new directory exists it wins"
+
+        with tempfile.TemporaryDirectory() as tmp:      # neither exists yet
+            Path.home = staticmethod(lambda: Path(tmp))
+            assert store._home().name == ".shelldeck", \
+                "a fresh install must use the new name"
+    finally:
+        Path.home = real_home
+        if real_env is not None:
+            os.environ["SHELLDECK_HOME"] = real_env
 
 
 def test_origin_guard():

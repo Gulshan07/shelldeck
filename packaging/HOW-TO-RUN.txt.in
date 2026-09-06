@@ -1,13 +1,13 @@
-EazyConnector — how to run (Ubuntu)
+Shelldeck — how to run (Ubuntu)
 
 1. Make it executable and start it:
-      chmod +x EazyConnector-x86_64.AppImage
-      ./EazyConnector-x86_64.AppImage
+      chmod +x Shelldeck-x86_64.AppImage
+      ./Shelldeck-x86_64.AppImage
    (or right-click → Properties → Permissions → "Allow executing", then double-click)
 
 2. It opens your browser at http://127.0.0.1:<port>. On first launch it asks you
    to create YOUR OWN master password. Everything you save (servers, keys, VPN)
-   is encrypted with it and stays on your machine, in ~/.eazyconnector.
+   is encrypted with it and stays on your machine, in ~/.shelldeck.
 
 3. For the one-click VPN feature only, install OpenVPN once:
       sudo apt install openvpn
@@ -25,10 +25,10 @@ EazyConnector — how to run (Ubuntu)
 If it won't start with "libfuse.so.2: cannot open", either:
       sudo apt install libfuse2
    or run it without FUSE:
-      ./EazyConnector-x86_64.AppImage --appimage-extract-and-run
+      ./Shelldeck-x86_64.AppImage --appimage-extract-and-run
 
 Verify the download is intact (optional):
-      sha256sum EazyConnector-x86_64.AppImage
+      sha256sum Shelldeck-x86_64.AppImage
    should print:
       __SHA256__
 

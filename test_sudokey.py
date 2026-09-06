@@ -1,12 +1,12 @@
 """The unreadable-key sudo flow, end to end, with fake sudo + real sshd.
 Run: .venv/bin/python test_sudokey.py"""
 import asyncio, json, os, socket, tempfile, threading, time
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 os.environ["PATH"] = os.path.abspath("testbin") + os.pathsep + os.environ["PATH"]
 os.environ["FAKE_SUDO_PASSWORD"] = "my-sudo-pw"
 
 import asyncssh, uvicorn, websockets
-from eazyconnector import store, server
+from shelldeck import store, server
 
 SSHD_PORT = 2293
 
@@ -27,9 +27,9 @@ async def main():
     store.init_home()
     # a client key the sshd will accept
     ckey = asyncssh.generate_private_key("ssh-ed25519")
-    keypath = os.path.join(os.environ["EAZY_HOME"], "root_owned.pem")
+    keypath = os.path.join(os.environ["SHELLDECK_HOME"], "root_owned.pem")
     open(keypath, "w").write(ckey.export_private_key().decode())
-    authp = os.path.join(os.environ["EAZY_HOME"], "authorized")
+    authp = os.path.join(os.environ["SHELLDECK_HOME"], "authorized")
     open(authp, "w").write(ckey.export_public_key().decode())
     await sshd(authp)
 

@@ -1,6 +1,6 @@
-# EazyConnector
+# Shelldeck
 
-[![Release](https://img.shields.io/github/v/release/Gulshan07/EazyConnector?color=4c8dff)](https://github.com/Gulshan07/EazyConnector/releases)
+[![Release](https://img.shields.io/github/v/release/Gulshan07/Shelldeck?color=4c8dff)](https://github.com/Gulshan07/Shelldeck/releases)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-4c8dff)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux-4c8dff)](#platform-support)
 [![Python](https://img.shields.io/badge/python-3.10%2B-4c8dff)](pyproject.toml)
@@ -10,13 +10,13 @@ serial consoles, an encrypted local vault, and one-click VPN with automatic
 two-factor. It runs as a small local server and uses your browser as the UI, so
 the same build works on any machine that runs Python.
 
-![EazyConnector](docs/screenshot.png)
+![Shelldeck](docs/screenshot.png)
 
 *Two servers open side by side with **broadcast** on — one `uptime`, both hosts.*
 
 <details><summary>Light theme</summary>
 
-![EazyConnector in light theme](docs/screenshot-light.png)
+![Shelldeck in light theme](docs/screenshot-light.png)
 
 </details>
 
@@ -28,11 +28,11 @@ the same build works on any machine that runs Python.
 is openly modelled on it. Three things pushed me to build something else:
 
 - **It's effectively Linux-only.** Perl + GTK is hard to move to macOS or a
-  colleague's Windows laptop. EazyConnector is one Python codebase with a
+  colleague's Windows laptop. Shelldeck is one Python codebase with a
   browser UI, and ships as a single self-contained binary.
 - **Saved passwords weren't really encrypted.** Ásbrú's default is a *hardcoded*
   cipher key, so anyone who can read `asbru.yml` can recover every stored
-  password. EazyConnector encrypts everything under a master password only you
+  password. Shelldeck encrypts everything under a master password only you
   know — scrypt + AES-256-GCM — and nothing sensitive is ever written in plain
   text.
 - **Nothing did the VPN dance for me.** Connecting meant typing a password plus
@@ -81,13 +81,13 @@ model below.
 
 ### Linux — download and run
 
-Grab `EazyConnector-x86_64.AppImage` from the
-[latest release](https://github.com/Gulshan07/EazyConnector/releases/latest),
+Grab `Shelldeck-x86_64.AppImage` from the
+[latest release](https://github.com/Gulshan07/Shelldeck/releases/latest),
 then:
 
 ```bash
-chmod +x EazyConnector-x86_64.AppImage
-./EazyConnector-x86_64.AppImage
+chmod +x Shelldeck-x86_64.AppImage
+./Shelldeck-x86_64.AppImage
 ```
 
 No Python, no dependencies. If it fails with `libfuse.so.2: cannot open`,
@@ -99,11 +99,11 @@ either `sudo apt install libfuse2` or run it with
 Requires Python 3.10+.
 
 ```bash
-git clone https://github.com/Gulshan07/EazyConnector.git
-cd EazyConnector
+git clone https://github.com/Gulshan07/Shelldeck.git
+cd Shelldeck
 python3 -m venv .venv
 .venv/bin/pip install -e .
-.venv/bin/eazyconnector
+.venv/bin/shelldeck
 ```
 
 Optional extras: `.venv/bin/pip install -e ".[import]"` for Ásbrú import
@@ -112,7 +112,7 @@ Optional extras: `.venv/bin/pip install -e ".[import]"` for Ásbrú import
 ### Build your own binary
 
 ```bash
-./build.sh          # -> dist/EazyConnector and, on Linux, an .AppImage
+./build.sh          # -> dist/Shelldeck and, on Linux, an .AppImage
 ```
 
 ### Running it
@@ -153,7 +153,7 @@ Found a hole? **Please do not open a public issue** — see
 [SECURITY.md](SECURITY.md) for private reporting, the threat model, and the
 handful of design decisions that look like flaws and are deliberate.
 
-Everything lives in `~/.eazyconnector/`:
+Everything lives in `~/.shelldeck/`:
 
 ```
 config.json   0600   hosts, ports, groups — no secrets, safe to sync
@@ -215,7 +215,7 @@ in [CHANGELOG.md](CHANGELOG.md).
 - [Ásbrú Connection Manager](https://asbru-cm.net/) — the inspiration, and still
   the benchmark for this kind of tool.
 - [xterm.js](https://xtermjs.org/) (MIT) — vendored in
-  `eazyconnector/static/vendor/`.
+  `shelldeck/static/vendor/`.
 - [AsyncSSH](https://asyncssh.readthedocs.io/) — the SSH implementation doing
   the real work.
 

@@ -1,4 +1,4 @@
-/* EazyConnector design system
+/* Shelldeck design system
    Tokens first, then layout, then components. Class names are load-bearing:
    app.js and test_ui.py select on them, so they are preserved verbatim. */
 

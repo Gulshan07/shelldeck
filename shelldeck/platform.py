@@ -88,7 +88,7 @@ def find_openvpn():
 def elevation_prefix(sudo_pw):
     """Command prefix to run the next argv with root/admin, or [] if already
     elevated or elevation isn't available this way on the platform."""
-    if is_elevated() or os.environ.get("EAZY_OPENVPN_NO_SUDO"):
+    if is_elevated() or os.environ.get("SHELLDECK_OPENVPN_NO_SUDO"):
         return []
     if IS_WINDOWS:
         # Windows elevation is a UAC prompt, not a password we can pipe, so there
@@ -100,11 +100,11 @@ def elevation_prefix(sudo_pw):
 
 def elevation_problem():
     """Why we cannot get the privileges openvpn needs, or None if we can."""
-    if is_elevated() or os.environ.get("EAZY_OPENVPN_NO_SUDO"):
+    if is_elevated() or os.environ.get("SHELLDECK_OPENVPN_NO_SUDO"):
         return None
     if IS_WINDOWS:
         return ("OpenVPN needs Administrator rights on Windows, and Windows cannot be "
-                "given a password the way sudo can. Close EazyConnector, right-click it "
+                "given a password the way sudo can. Close Shelldeck, right-click it "
                 "and choose 'Run as administrator', then connect again.")
     return None      # POSIX: sudo handles it, with or without a stored password
 

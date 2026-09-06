@@ -1,11 +1,11 @@
 """End-to-end: vault -> add connection -> TOFU host key -> SSH shell.
 Run: .venv/bin/python test_e2e.py"""
 import asyncio, os, tempfile, threading
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 
 import asyncssh
 from starlette.testclient import TestClient
-from eazyconnector import store, server
+from shelldeck import store, server
 
 PORT = 2299
 PW = "s3cret-server-pw"

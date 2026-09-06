@@ -1,6 +1,6 @@
 # Security policy
 
-EazyConnector stores SSH keys, passwords, TOTP secrets and VPN credentials. A
+Shelldeck stores SSH keys, passwords, TOTP secrets and VPN credentials. A
 bug here can expose all of them, so security reports get priority over
 everything else.
 
@@ -11,7 +11,7 @@ everything else.
 > **Security** tab → **Report a vulnerability**
 
 That opens a private advisory only you and I can read. If it is not enabled or
-you cannot reach it, email **071297gk@gmail.com** with `EazyConnector security`
+you cannot reach it, email **071297gk@gmail.com** with `Shelldeck security`
 in the subject.
 
 Please include what an attacker gains, the steps to reproduce, and the version
@@ -39,7 +39,7 @@ hostile**. These are all in scope:
 - Anything requiring you to already be root, or to already know the master
   password.
 - Weaknesses in OpenVPN, AsyncSSH or the browser itself — report those upstream,
-  though tell me if EazyConnector uses them unsafely.
+  though tell me if Shelldeck uses them unsafely.
 - The master password being weak. It is stretched with scrypt (n=2^17), but a
   guessable password is still a guessable password.
 - Missing hardening on a single-user machine that only matters on a shared one

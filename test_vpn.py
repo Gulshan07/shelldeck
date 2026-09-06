@@ -3,12 +3,12 @@ protocol, so the whole auth conversation is exercised without root or a tunnel.
 Run: .venv/bin/python test_vpn.py"""
 import asyncio, os, tempfile, time
 
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
-os.environ["EAZY_OPENVPN_NO_SUDO"] = "1"
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_OPENVPN_NO_SUDO"] = "1"
 os.environ["PATH"] = os.path.abspath("testbin") + os.pathsep + os.environ["PATH"]
 
-from eazyconnector import store
-from eazyconnector.vpn import Vpn, VpnError, totp, RUN_DIR
+from shelldeck import store
+from shelldeck.vpn import Vpn, VpnError, totp, RUN_DIR
 
 PW = "corporate-secret"
 SEED = "JBSWY3DPEHPK3PXP"

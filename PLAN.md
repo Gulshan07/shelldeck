@@ -1,4 +1,4 @@
-# EazyConnector — Plan
+# Shelldeck — Plan
 
 Ásbrú-style connection manager, OS-independent, one binary-ish install, secrets never leave the machine.
 
@@ -8,7 +8,7 @@
 |---|---|---|
 | Shape | Local web server on `127.0.0.1`, UI in your browser | Runs anywhere Python runs, incl. headless/remote. No Electron, no build step. |
 | Protocols P1 | SSH, SFTP, Serial, Telnet | Covers ~90% of Ásbrú use. RDP/VNC deferred. |
-| Vault | `~/.eazyconnector/vault.enc`, master password | Portable, syncable, works headless. |
+| Vault | `~/.shelldeck/vault.enc`, master password | Portable, syncable, works headless. |
 | VPN | System `openvpn` + management interface | Auditable, no reimplementation. |
 
 ## Stack
@@ -17,7 +17,7 @@
 - **Crypto:** stdlib `hashlib.scrypt` for KDF + `cryptography` AES-256-GCM (already an asyncssh dep — no new dependency).
 - **TOTP:** ~12 lines of stdlib `hmac` + `struct`. No `pyotp`.
 - **Frontend:** vendored `xterm.js` + plain HTML/CSS/JS. No React, no bundler, no npm at runtime.
-- **Install:** `pipx install eazyconnector` → `eazyconnector` opens the browser.
+- **Install:** `pipx install shelldeck` → `shelldeck` opens the browser.
 
 Total new runtime deps: 4.
 
@@ -36,8 +36,8 @@ Threat: laptop stolen, or a random web page in your browser tries to talk to the
 
 **Shared machine (this box is multi-user), so additionally:**
 
-9. `~/.eazyconnector/` is `0700`, every file `0600`, enforced on every write — not just at create.
-10. Port is **ephemeral**, not a fixed 8790 — no port collisions between users, and no guessable target. The URL is written to `~/.eazyconnector/url` (0600) and opened in the browser.
+9. `~/.shelldeck/` is `0700`, every file `0600`, enforced on every write — not just at create.
+10. Port is **ephemeral**, not a fixed 8790 — no port collisions between users, and no guessable target. The URL is written to `~/.shelldeck/url` (0600) and opened in the browser.
 11. The token is **never** passed as a CLI argument (`/proc/<pid>/cmdline` is world-readable) and never in the URL path or query — it lives in the URL **fragment**, which the browser does not send to the server. JS reads it and puts it in an `Authorization` header. So it stays out of server logs and out of other users' reach.
 12. Any `.ovpn`/PEM imported gets `chmod 600` and we warn if the source file was group/world-readable. (Your `profile-168.ovpn` was `rw-rw-r--` with an embedded `<key>` — already fixed to `600`.)
 13. `umask 077` set at startup, before anything is written.
@@ -46,7 +46,7 @@ Threat: laptop stolen, or a random web page in your browser tries to talk to the
 ## Data model
 
 ```
-~/.eazyconnector/
+~/.shelldeck/
   config.json     # tree, hosts, ports, protocols, options — NO secrets
   vault.enc       # AES-GCM blob: {cred_id: {password, key_pem, passphrase, totp_secret}}
   logs/           # opt-in session logs

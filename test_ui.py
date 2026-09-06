@@ -15,9 +15,9 @@ if not CHROME:
     print("skip: no chrome on PATH")
     sys.exit(0)
 
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 import asyncssh, uvicorn, websockets
-from eazyconnector import store, server
+from shelldeck import store, server
 
 MASTER = "ui-master-pw"
 SSHD_PORT, SSH_PW = 2294, "pw"
@@ -106,7 +106,7 @@ async def main():
         "vpns": [{"id": "v", "name": "vee", "username": "u", "dialect": "auto"}]})
 
     # a directory with more rows than fit on screen, to test scroll containment
-    big = os.path.join(os.environ["EAZY_HOME"], "big")
+    big = os.path.join(os.environ["SHELLDECK_HOME"], "big")
     os.makedirs(big, exist_ok=True)
     for i in range(120):
         with open(os.path.join(big, f"file-{i}.bin"), "wb") as fh:

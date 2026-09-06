@@ -47,7 +47,7 @@ jobs:
         include:
           - os: ubuntu-latest
             label: linux
-            binary: dist/EazyConnector
+            binary: dist/Shelldeck
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -61,7 +61,7 @@ jobs:
           pip install -e ".[build,import,serial]"
 
       - name: Build
-        run: pyinstaller --clean -y eazyconnector.spec
+        run: pyinstaller --clean -y shelldeck.spec
 
       # The real check: does the thing we just built actually run on this OS?
       - name: Smoke test the binary
@@ -75,22 +75,22 @@ jobs:
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           rm -rf build/AppDir && mkdir -p build/AppDir/usr/bin
-          cp dist/EazyConnector build/AppDir/usr/bin/
-          cp packaging/eazyconnector.desktop packaging/eazyconnector.png build/AppDir/
-          cp packaging/eazyconnector.png build/AppDir/.DirIcon
+          cp dist/Shelldeck build/AppDir/usr/bin/
+          cp packaging/shelldeck.desktop packaging/shelldeck.png build/AppDir/
+          cp packaging/shelldeck.png build/AppDir/.DirIcon
           cp packaging/AppRun build/AppDir/AppRun && chmod +x build/AppDir/AppRun
           # appimagetool itself needs FUSE, which CI containers lack
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run --no-appstream \
-            build/AppDir dist/EazyConnector-x86_64.AppImage
-          SUM=$(sha256sum dist/EazyConnector-x86_64.AppImage | cut -d' ' -f1)
+            build/AppDir dist/Shelldeck-x86_64.AppImage
+          SUM=$(sha256sum dist/Shelldeck-x86_64.AppImage | cut -d' ' -f1)
           sed "s/__SHA256__/$SUM/" packaging/HOW-TO-RUN.txt.in > dist/HOW-TO-RUN.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EazyConnector-${{ matrix.label }}
+          name: Shelldeck-${{ matrix.label }}
           path: |
-            dist/EazyConnector
-            dist/EazyConnector-x86_64.AppImage
+            dist/Shelldeck
+            dist/Shelldeck-x86_64.AppImage
             dist/HOW-TO-RUN.txt
           if-no-files-found: error
 

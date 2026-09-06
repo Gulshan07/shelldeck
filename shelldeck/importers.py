@@ -166,7 +166,7 @@ def to_bundle(connections) -> dict:
     refs = {m for c in connections for m in (c.get("macros") or [])}
     refs |= {c["autorun_macro"] for c in connections if c.get("autorun_macro")}
     return {
-        "eazyconnector_export": EXPORT_VERSION,
+        "shelldeck_export": EXPORT_VERSION,
         "connections": rows,
         "macros_referenced": sorted(refs),
         "note": ("Structure only. Contains no passwords, private keys, passphrases, "
@@ -177,11 +177,13 @@ def to_bundle(connections) -> dict:
 
 def from_bundle(data: dict) -> tuple[list, list]:
     """Read a bundle produced by to_bundle(). Jump hosts are linked by name."""
-    if not isinstance(data, dict) or "eazyconnector_export" not in data:
-        raise ValueError("not an EazyConnector export file")
-    if int(data["eazyconnector_export"]) > EXPORT_VERSION:
-        raise ValueError(f"this file needs a newer EazyConnector "
-                         f"(format v{data['eazyconnector_export']})")
+    # "eazyconnector_export" is the pre-0.1.0 spelling of the same field.
+    version = data.get("shelldeck_export", data.get("eazyconnector_export")) \
+        if isinstance(data, dict) else None
+    if version is None:
+        raise ValueError("not a Shelldeck export file")
+    if int(version) > EXPORT_VERSION:
+        raise ValueError(f"this file needs a newer Shelldeck (format v{version})")
     warnings, conns = [], []
     for r in data.get("connections") or []:
         if not (r.get("name") or "").strip():

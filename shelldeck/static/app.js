@@ -63,7 +63,7 @@ $("#theme-btn").onclick = () => {
   applyChromeTheme(t);
   // Keep terminals readable next to the new chrome. Only on an explicit toggle,
   // so a terminal theme picked in prefs survives a reload; prefs still overrides.
-  termPrefs.theme = t === "light" ? "light" : "eazy";
+  termPrefs.theme = t === "light" ? "light" : "shelldeck";
   try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
   applyPrefs();
 };
@@ -523,7 +523,7 @@ $("#export-btn").onclick = async () => {
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), {
       href: URL.createObjectURL(blob),
-      download: `eazyconnector-connections-${new Date().toISOString().slice(0, 10)}.json`,
+      download: `shelldeck-connections-${new Date().toISOString().slice(0, 10)}.json`,
     });
     a.click();
     URL.revokeObjectURL(a.href);
@@ -787,7 +787,7 @@ function renderPaneEmpty(panes) {
 // --- terminal appearance ------------------------------------------------
 
 const THEMES = {
-  eazy:      { background: "#111318", foreground: "#d8dbe2", cursor: "#5aa9e6" },
+  shelldeck:      { background: "#111318", foreground: "#d8dbe2", cursor: "#5aa9e6" },
   black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
   solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
   light:     { background: "#fdf6e3", foreground: "#3b4045", cursor: "#268bd2" },
@@ -796,14 +796,14 @@ const THEMES = {
 function loadPrefs() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem("termPrefs")) || {}; } catch {}
-  return { theme: p.theme || "eazy", fontSize: p.fontSize || 13,
+  return { theme: p.theme || "shelldeck", fontSize: p.fontSize || 13,
            fontFamily: p.fontFamily || "ui-monospace, monospace" };
 }
 let termPrefs = loadPrefs();
 
 function termOptions() {
   return { fontSize: +termPrefs.fontSize, fontFamily: termPrefs.fontFamily,
-           cursorBlink: true, theme: THEMES[termPrefs.theme] || THEMES.eazy };
+           cursorBlink: true, theme: THEMES[termPrefs.theme] || THEMES.shelldeck };
 }
 
 const liveTerms = new Set();
@@ -812,7 +812,7 @@ function applyPrefs() {
   for (const t of liveTerms) {
     t.options.fontSize = +termPrefs.fontSize;
     t.options.fontFamily = termPrefs.fontFamily;
-    t.options.theme = THEMES[termPrefs.theme] || THEMES.eazy;
+    t.options.theme = THEMES[termPrefs.theme] || THEMES.shelldeck;
   }
   activeTab?.panes.forEach((p) => p.resize?.());
 }

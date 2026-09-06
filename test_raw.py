@@ -1,9 +1,9 @@
 """Telnet (and serial error-path) session over the real server.
 Run: .venv/bin/python test_raw.py"""
 import asyncio, json, os, socket, tempfile, threading
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 import uvicorn, websockets
-from eazyconnector import store, server
+from shelldeck import store, server
 
 IAC, WILL, DO, ECHO, SGA = 255, 251, 253, 1, 3
 

@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=EazyConnector
+Name=Shelldeck
 Comment=SSH/SFTP connection manager with one-click VPN
-Exec=EazyConnector
-Icon=eazyconnector
+Exec=Shelldeck
+Icon=shelldeck
 Categories=Network;RemoteAccess;
 Terminal=true

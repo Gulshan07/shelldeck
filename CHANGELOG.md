@@ -7,6 +7,11 @@ Notable changes per release. Dates are release dates.
 First public release. Linux only; Windows and macOS are written but unverified,
 so they are not released yet.
 
+The project was called EazyConnector before this release. Nothing was published
+under that name, but a vault created by a pre-release build still opens: if
+`~/.shelldeck` does not exist and `~/.eazyconnector` does, the old directory is
+used in place.
+
 **Sessions**
 - SSH, Telnet and serial console sessions in tabs, with Ctrl-click split panes
   and a real terminal (xterm.js, vendored — no build step).

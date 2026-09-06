@@ -1,9 +1,9 @@
-"""Launch a built EazyConnector and prove it actually serves.
+"""Launch a built Shelldeck and prove it actually serves.
 
 Cross-platform (this is how the Windows and macOS builds are verified in CI,
 where there is no browser and no display).
 
-    python packaging/smoke.py dist/EazyConnector[.exe]
+    python packaging/smoke.py dist/Shelldeck[.exe]
 """
 import os
 import subprocess
@@ -15,7 +15,7 @@ import urllib.request
 
 exe = sys.argv[1]
 home = tempfile.mkdtemp()
-env = dict(os.environ, EAZY_HOME=home, EAZY_NO_BROWSER="1")
+env = dict(os.environ, SHELLDECK_HOME=home, SHELLDECK_NO_BROWSER="1")
 
 proc = subprocess.Popen([exe], env=env, stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT, text=True)
@@ -66,7 +66,7 @@ try:
         if proc.poll() is not None:
             die(f"exited while starting (code {proc.returncode})")
         time.sleep(0.5)
-    if code != 200 or b"EazyConnector" not in body:
+    if code != 200 or b"Shelldeck" not in body:
         die(f"index returned {code}")
     if get("/static/vendor/xterm.js")[0] != 200:
         die("bundled xterm.js is missing from the build")

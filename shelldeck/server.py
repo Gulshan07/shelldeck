@@ -173,7 +173,7 @@ async def delete_connection(request):
 IMPORT_SOURCES = {
     "ssh_config": ("~/.ssh/config", "ssh"),
     "asbru": ("~/.config/asbru/asbru.yml", "asbru"),
-    "bundle": (None, "bundle"),     # an exported EazyConnector file, sent in the body
+    "bundle": (None, "bundle"),     # an exported Shelldeck file, sent in the body
 }
 
 
@@ -784,7 +784,7 @@ async def raw_session(ws, conn):
                     if ctl.get("type") == "macro" and ctl.get("body"):
                         asyncio.create_task(run_macro(ctl["body"]))
             except Exception as e:
-                print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
+                print(f"[shelldeck] {conn['name']}: ignoring {type(e).__name__}: {e}")
     finally:
         out.cancel()
         if logger:
@@ -808,7 +808,7 @@ async def ssh_ws(ws):
         try:
             client = await _open_chain(cid, ws, stack)
         except Exception as e:
-            print(f"[eazyconnector] {conn['name']}: {type(e).__name__}: {e}")
+            print(f"[shelldeck] {conn['name']}: {type(e).__name__}: {e}")
             await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
             with contextlib.suppress(Exception):
                 await ws.close()
@@ -882,7 +882,7 @@ async def ssh_ws(ws):
                         elif ctl.get("type") == "macro" and ctl.get("body"):
                             asyncio.create_task(run_macro(ctl["body"]))
                 except Exception as e:
-                    print(f"[eazyconnector] {conn['name']}: ignoring {type(e).__name__}: {e}")
+                    print(f"[shelldeck] {conn['name']}: ignoring {type(e).__name__}: {e}")
         finally:
             out.cancel()
             if logger:
@@ -989,7 +989,7 @@ async def sftp_ws(ws):
             stack.callback(sftp.exit)
             await _say(ws, await _listdir(sftp, first.get("path") or "."))
         except Exception as e:
-            print(f"[eazyconnector] sftp {conn['name']}: {type(e).__name__}: {e}")
+            print(f"[shelldeck] sftp {conn['name']}: {type(e).__name__}: {e}")
             await _say(ws, {"type": "error", "message": f"{type(e).__name__}: {e}"})
             with contextlib.suppress(Exception):
                 await ws.close()

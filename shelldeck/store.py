@@ -9,7 +9,19 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from . import platform
 
-HOME = Path(os.environ.get("EAZY_HOME") or Path.home() / ".eazyconnector")
+def _home() -> Path:
+    if env := os.environ.get("SHELLDECK_HOME"):
+        return Path(env)
+    home = Path.home() / ".shelldeck"
+    # The project was called EazyConnector before 0.1.0. Anyone who ran it then
+    # has a vault only their master password can open, so keep using it in place
+    # rather than silently moving or orphaning it. Delete this once nobody has
+    # a ~/.eazyconnector left.
+    old = Path.home() / ".eazyconnector"
+    return old if not home.exists() and old.is_dir() else home
+
+
+HOME = _home()
 CONFIG = HOME / "config.json"
 VAULT = HOME / "vault.enc"
 KNOWN_HOSTS = HOME / "known_hosts"

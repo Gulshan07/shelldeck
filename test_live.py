@@ -2,10 +2,10 @@
 so it cannot catch a missing uvicorn ws implementation. This can.
 Run: .venv/bin/python test_live.py"""
 import asyncio, json, os, socket, tempfile, threading
-os.environ["EAZY_HOME"] = tempfile.mkdtemp()
+os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 
 import asyncssh, httpx, uvicorn, websockets
-from eazyconnector import store, server
+from shelldeck import store, server
 
 SSHD_PORT, PW = 2298, "s3cret"
 
@@ -359,7 +359,7 @@ async def main():
 
         bad = (await h5.post("/api/import/bundle/preview", json={"bundle": {"nope": 1}}))
         assert bad.status_code == 400, bad.text
-        print("ok  a non-EazyConnector file is refused")
+        print("ok  a non-Shelldeck file is refused")
 
     store.HOME, store.CONFIG, store.VAULT, server.vault = _orig
 
@@ -417,13 +417,13 @@ async def main():
     import base64
     async with websockets.connect(f"ws://127.0.0.1:{port}/ws/sftp",
                                   additional_headers={"Origin": origin}) as ws:
-        await ws.send(json.dumps({"token": server.TOKEN, "id": cid, "path": os.environ["EAZY_HOME"]}))
+        await ws.send(json.dumps({"token": server.TOKEN, "id": cid, "path": os.environ["SHELLDECK_HOME"]}))
         msg = json.loads(await ws.recv())
         assert msg["type"] == "list", msg
         print("ok  sftp listed", len(msg["entries"]), "entries in", msg["path"])
         root = msg["path"]
 
-        payload = b"hello from eazyconnector\n" * 500
+        payload = b"hello from shelldeck\n" * 500
         await ws.send(json.dumps({"op": "put", "path": f"{root}/upload.bin", "size": len(payload)}))
         await ws.send(payload)
         assert json.loads(await ws.recv())["type"] == "uploaded"
@@ -474,9 +474,9 @@ async def main():
 
         # a shell metacharacter in the term must not run as a command
         open(f"{root}/safe.txt", "w").write("ok")
-        await ws.send(json.dumps({"op": "find", "path": root, "q": "'; touch /tmp/pwned_eazy; #"}))
+        await ws.send(json.dumps({"op": "find", "path": root, "q": "'; touch /tmp/pwned_shelldeck; #"}))
         assert json.loads(await ws.recv())["entries"] == []
-        assert not os.path.exists("/tmp/pwned_eazy"), "search term was executed as shell!"
+        assert not os.path.exists("/tmp/pwned_shelldeck"), "search term was executed as shell!"
         print("ok  search term is quoted, not executed")
 
         await ws.send(json.dumps({"op": "get", "path": f"{root}/nope"}))

@@ -21,12 +21,12 @@ def main():
 
     url = f"http://127.0.0.1:{port}/#{TOKEN}"
     store.write_private(store.URL_FILE, url.encode())
-    print(f"EazyConnector → {url}")
+    print(f"Shelldeck → {url}")
     print(f"(also saved to {store.URL_FILE}, mode 0600)")
 
     # Headless servers and CI have no browser to open; opening one there either
     # fails noisily or hangs.
-    if not os.environ.get("EAZY_NO_BROWSER"):
+    if not os.environ.get("SHELLDECK_NO_BROWSER"):
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
 

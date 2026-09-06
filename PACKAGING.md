@@ -1,7 +1,7 @@
 # Packaging & distribution
 
 The app is a single Python codebase with a browser UI. All OS-specific behaviour
-lives in `eazyconnector/platform.py` (file permissions, elevation, openvpn path),
+lives in `shelldeck/platform.py` (file permissions, elevation, openvpn path),
 so the same source builds for all three platforms.
 
 ## What "install and go" means here
@@ -17,24 +17,24 @@ OpenVPN, which stays a normal system install and is only needed for the VPN feat
 ./build.sh
 ```
 
-- **Ubuntu** → `dist/EazyConnector` (run it) and `dist/EazyConnector-x86_64.AppImage`
-  (double-click, or `./EazyConnector-x86_64.AppImage`). ~18 MB.
-- **macOS** → run `./build.sh` on a Mac → `dist/EazyConnector`. Everything works
+- **Ubuntu** → `dist/Shelldeck` (run it) and `dist/Shelldeck-x86_64.AppImage`
+  (double-click, or `./Shelldeck-x86_64.AppImage`). ~18 MB.
+- **macOS** → run `./build.sh` on a Mac → `dist/Shelldeck`. Everything works
   (macOS is POSIX). To avoid the Gatekeeper "unidentified developer" prompt, the
   binary must be code-signed + notarized (Apple Developer account).
-- **Windows** → run `./build.sh` on Windows → `dist/EazyConnector.exe`. The core
+- **Windows** → run `./build.sh` on Windows → `dist/Shelldeck.exe`. The core
   works; the VPN needs the app run as Administrator (Windows has no `sudo`), and
   file hardening uses ACLs — see the `ponytail:` notes in `platform.py`. To avoid
   the SmartScreen prompt, sign the .exe with a code-signing certificate.
 
 ## Giving it to a colleague (Ubuntu)
 
-1. Send them `dist/EazyConnector-x86_64.AppImage`.
+1. Send them `dist/Shelldeck-x86_64.AppImage`.
 2. They run it (or `chmod +x` then double-click). It prints a URL and opens their
    browser. First launch asks them to create their own master password.
 3. For the VPN feature: `sudo apt install openvpn`.
 
-Each person's vault, config and keys live in their own `~/.eazyconnector` — nothing
+Each person's vault, config and keys live in their own `~/.shelldeck` — nothing
 is shared, nothing is sent anywhere.
 
 ## Building all three from one push
@@ -61,14 +61,14 @@ are worth restoring so incoming PRs get tested.
 From a clean Windows box with Python 3.10+ and Git installed:
 
 ```powershell
-git clone https://github.com/Gulshan07/EazyConnector.git
-cd EazyConnector
+git clone https://github.com/Gulshan07/Shelldeck.git
+cd Shelldeck
 py -m venv .venv
 .venv\Scripts\python -m pip install -e ".[build,import,serial,test]"
 
 .venv\Scripts\python test_p0.py          # start here; pure crypto and parsers
-.venv\Scripts\pyinstaller --clean -y eazyconnector.spec
-.venv\Scripts\python packaging\smoke.py dist\EazyConnector.exe
+.venv\Scripts\pyinstaller --clean -y shelldeck.spec
+.venv\Scripts\python packaging\smoke.py dist\Shelldeck.exe
 ```
 
 `smoke.py` passing means the binary launches, serves, bundles its assets and
@@ -78,7 +78,7 @@ these by hand — each maps to code that has never run on real Windows:
 1. **The vault survives a restart.** Create it, add a connection, quit, relaunch,
    unlock. A failure here means the `O_BINARY` guard is wrong and CRLF
    translation corrupted the AES-GCM blob.
-2. **File permissions.** `icacls %USERPROFILE%\.eazyconnector\vault.enc` should
+2. **File permissions.** `icacls %USERPROFILE%\.shelldeck\vault.enc` should
    list your user only, with inheritance broken.
 3. **VPN without Administrator.** Starting a VPN unelevated must show the "run as
    Administrator" message, not an obscure openvpn failure.

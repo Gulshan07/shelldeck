@@ -11,15 +11,15 @@ You do not need write access to this repository, and you will not be given it.
 You work on a copy under your own account and ask me to pull from it.
 
 ```bash
-# 1. Fork: press "Fork" on https://github.com/Gulshan07/EazyConnector
-#    You now own https://github.com/<you>/EazyConnector
+# 1. Fork: press "Fork" on https://github.com/Gulshan07/Shelldeck
+#    You now own https://github.com/<you>/Shelldeck
 
 # 2. Clone YOUR fork, not mine
-git clone https://github.com/<you>/EazyConnector.git
-cd EazyConnector
+git clone https://github.com/<you>/Shelldeck.git
+cd Shelldeck
 
 # 3. Point "upstream" at mine, so you can pull in my later changes
-git remote add upstream https://github.com/Gulshan07/EazyConnector.git
+git remote add upstream https://github.com/Gulshan07/Shelldeck.git
 git remote -v
 
 # 4. Branch. Never work on main -- it makes syncing painful later.
@@ -36,7 +36,7 @@ git push origin fix-sftp-upload-stall
 ```
 
 GitHub then shows a "Compare & pull request" button on your fork. Press it,
-target `Gulshan07/EazyConnector` `main`, describe what you changed and why.
+target `Gulshan07/Shelldeck` `main`, describe what you changed and why.
 
 To pick up my changes later:
 
@@ -88,7 +88,7 @@ negotiable:
 - **A new runtime dependency** for something a few lines of stdlib can do. The
   app is meant to ship as one self-contained binary.
 - **A build step for the frontend.** No npm, no bundler. xterm.js is vendored
-  in `eazyconnector/static/vendor/`.
+  in `shelldeck/static/vendor/`.
 
 ## Style
 

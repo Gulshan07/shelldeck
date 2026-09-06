@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EazyConnector</title>
+<title>Shelldeck</title>
 <link rel="stylesheet" href="/static/vendor/xterm.css">
 <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -44,7 +44,7 @@
 
 <div id="gate" class="gate">
   <form id="unlock-form">
-    <h1>EazyConnector</h1>
+    <h1>Shelldeck</h1>
     <p id="gate-hint">Unlock your vault</p>
     <input id="master" type="password" placeholder="Master password" autofocus>
     <button>Unlock</button>
@@ -56,7 +56,7 @@
   <aside>
     <div class="brand">
       <svg class="ic brand-mark" viewBox="0 0 24 24"><use href="#i-terminal"/></svg>
-      <span class="brand-name">EazyConnector</span>
+      <span class="brand-name">Shelldeck</span>
       <button id="theme-btn" class="icon-btn" aria-label="Switch between light and dark theme"
               title="Light / dark theme"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sun"/></svg></button>
     </div>
@@ -226,7 +226,7 @@
     <h2>Terminal appearance</h2>
     <label>Theme
       <select name="theme">
-        <option value="eazy">EazyConnector (dark)</option>
+        <option value="shelldeck">Shelldeck (dark)</option>
         <option value="black">Black</option>
         <option value="solarized">Solarized Dark</option>
         <option value="light">Light</option>
@@ -363,7 +363,7 @@
 </dialog>
 
 <dialog id="help">
-  <h2>EazyConnector — how to use it</h2>
+  <h2>Shelldeck — how to use it</h2>
   <p class="note">A connection manager that runs in your browser but talks only to your own machine.
     Everything you save is encrypted on your computer and shared with no one.</p>
 
@@ -428,7 +428,7 @@
   <section>
     <h3>5. Jump hosts (bastions)</h3>
     <p>Add the bastion as its own connection, then set it as the target's <b>Jump host</b> in the
-    editor. EazyConnector connects through it automatically. Chains work (jump through a jump), and
+    editor. Shelldeck connects through it automatically. Chains work (jump through a jump), and
     every hop's key is checked.</p>
   </section>
 
@@ -486,7 +486,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
       <tr><td><b>Speed</b> 1&times;&ndash;8&times;</td><td>fast-forward the replay</td></tr>
       <tr><td><b>delete</b></td><td>removes that log permanently</td></tr>
     </table>
-    <p class="note">Logs live in <code>~/.eazyconnector/logs/*.eclog</code>, capped at 50&nbsp;MB per
+    <p class="note">Logs live in <code>~/.shelldeck/logs/*.eclog</code>, capped at 50&nbsp;MB per
     session. They are only readable while your vault is unlocked.</p>
   </section>
 
@@ -516,7 +516,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <h3>What stays private</h3>
     <ul>
       <li>The server only listens on your own machine (127.0.0.1) — nothing is exposed to the network.</li>
-      <li>Passwords, keys, VPN details and logs are encrypted in <code>~/.eazyconnector</code>;
+      <li>Passwords, keys, VPN details and logs are encrypted in <code>~/.shelldeck</code>;
         hostnames and ports sit in plain config with no secrets.</li>
       <li>Secrets never reach the browser — the page asks to connect, the server does the login.</li>
       <li>A root-owned key file is read once via <code>sudo</code> (asked when needed) and cached
