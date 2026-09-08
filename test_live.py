@@ -202,6 +202,37 @@ async def main():
         assert saw_local, "local_before output should reach the terminal"
         assert saw_remote, "remote_command should auto-run after login"
     print("ok  local pre-command runs and remote command auto-runs after login")
+
+    # Cloning must carry the credentials over. The editor never receives stored
+    # secrets, so a clone made in the browser would silently have no password --
+    # you would only find out when the connection failed to authenticate.
+    async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
+                                                           "Origin": origin}) as h3:
+        src = (await h3.post("/api/connections", json={
+            "name": "clone-src", "group": "cloney", "host": "127.0.0.1", "port": SSHD_PORT,
+            "user": "u", "auth": "password", "password": PW,
+            "forwards": "L 8123:localhost:80"})).json()
+
+        one = (await h3.post(f"/api/connections/{src['id']}/clone")).json()
+        assert one["name"] == "clone-src-1", one["name"]
+        assert one["group"] == "cloney", "a clone must stay in the source's group"
+        assert one["id"] != src["id"], "a clone must be a new entry, not the same one"
+        assert one["forwards"] == src["forwards"], "settings should come across"
+        assert server.vault.get(one["id"]).get("password") == PW, \
+            "the clone has no password: it would fail to authenticate"
+
+        two = (await h3.post(f"/api/connections/{src['id']}/clone")).json()
+        assert two["name"] == "clone-src-2", two["name"]
+        three = (await h3.post(f"/api/connections/{one['id']}/clone")).json()
+        assert three["name"] == "clone-src-3", f"cloning a clone stacked suffixes: {three['name']}"
+
+        named = (await h3.post(f"/api/connections/{src['id']}/clone",
+                               json={"name": "explicit"})).json()
+        assert named["name"] == "explicit"
+
+        missing = await h3.post("/api/connections/nope/clone")
+        assert missing.status_code == 404, missing.status_code
+    print("ok  clone keeps the group and credentials, numbers without stacking")
     # macros: store one, run it in a session, expect matches, follow-up sends
     async with httpx.AsyncClient(base_url=origin, headers={"Authorization": "Bearer " + server.TOKEN,
                                                            "Origin": origin}) as h2:

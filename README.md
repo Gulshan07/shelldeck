@@ -72,6 +72,8 @@ model below.
 **Getting your servers in and out**
 - **Import** from `~/.ssh/config` or Ásbrú — grouped, with jump hosts linked
 - **Export** a secret-free bundle to share your setup with teammates
+- **Clone a connection** — same group, credentials carried over, named
+  `name-1`; the fast way to add the next box in a fleet
 - Groups with drag-to-organise, collapse, and search
 
 **The UI**

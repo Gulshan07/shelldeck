@@ -38,6 +38,7 @@ used in place.
 - Encrypted session logs, opt-in per connection, with timed playback at 1×–8×.
 
 **Getting servers in and out**
+- Clone a connection into the same group, credentials included, named `name-1`.
 - Import from `~/.ssh/config` or Ásbrú, grouped, with jump hosts re-linked.
   Ásbrú's stored passwords are deliberately never decrypted.
 - Export a secret-free bundle to share a setup with colleagues.

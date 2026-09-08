@@ -6,7 +6,7 @@ import tempfile
 os.environ["SHELLDECK_HOME"] = tempfile.mkdtemp()
 
 from shelldeck import store  # noqa: E402
-from shelldeck.server import _origin_ok  # noqa: E402
+from shelldeck.server import _origin_ok, next_clone_name  # noqa: E402
 
 
 def test_vault_roundtrip():
@@ -450,6 +450,17 @@ def test_vault_dir_falls_back_to_the_old_name():
         Path.home = real_home
         if real_env is not None:
             os.environ["SHELLDECK_HOME"] = real_env
+
+
+def test_clone_names_do_not_collide_or_stack():
+    assert next_clone_name("web", {"web"}) == "web-1"
+    assert next_clone_name("web", {"web", "web-1"}) == "web-2"
+    # a host really called web-01 keeps its number instead of becoming web-1
+    assert next_clone_name("web-01", {"web-01"}) == "web-01-1"
+    # but cloning a clone continues the series rather than nesting suffixes
+    assert next_clone_name("web-01-1", {"web-01", "web-01-1"}) == "web-01-2"
+    # names are only taken within the group, so an empty group starts at -1
+    assert next_clone_name("web", set()) == "web-1"
 
 
 def test_origin_guard():

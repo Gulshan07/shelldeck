@@ -14,6 +14,7 @@
     <g id="i-terminal"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></g>
     <g id="i-folder"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2z"/></g>
     <g id="i-edit"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></g>
+    <g id="i-copy"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></g>
     <g id="i-trash"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></g>
     <g id="i-plus"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></g>
     <g id="i-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></g>
@@ -414,6 +415,10 @@
     <h3>4. Organise</h3>
     <table>
       <tr><td><b>Drag</b> a connection onto a group</td><td>moves it into that group</td></tr>
+      <tr><td><b>copy</b> button on a connection</td><td>clones it into the same group as
+        <code>name-1</code>, <b>keeping its password or key</b>, then opens the copy for editing —
+        the quick way to add the next box in a fleet. Press <kbd>Esc</kbd> to keep the
+        suggested name.</td></tr>
       <tr><td><b>Click</b> a group header</td><td>collapse or expand it</td></tr>
       <tr><td>Search box</td><td>matches <b>name, host/IP, username, group, protocol, port</b> and
         the jump host's name. Several words narrow it further — <code>star db</code> finds db hosts

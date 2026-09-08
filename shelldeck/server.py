@@ -4,6 +4,7 @@ import contextlib
 import json
 import os
 import posixpath
+import re
 import secrets
 import shlex
 import stat
@@ -156,6 +157,47 @@ async def connections(request):
         "passphrase": body.get("passphrase") or old.get("passphrase"),
     })
     return JSONResponse(conn)
+
+
+def next_clone_name(name: str, taken: set) -> str:
+    """`web-01` -> `web-01-1`; cloning that gives `web-01-2`, not `web-01-1-1`.
+
+    A trailing `-N` counts as a clone suffix only when the name without it is
+    really in the group, so a host genuinely called `web-01` keeps its number.
+    """
+    base = re.sub(r"-\d+$", "", name)
+    if base == name or base not in taken:
+        base = name
+    n = 1
+    while f"{base}-{n}" in taken:
+        n += 1
+    return f"{base}-{n}"
+
+
+@api
+async def clone_connection(request):
+    """Duplicate a connection, credentials included, into the same group.
+
+    Server-side because the editor never receives stored secrets, so a copy made
+    in the browser would come back with no password or key.
+    """
+    cid = request.path_params["cid"]
+    cfg = store.load_config()
+    src = next((c for c in cfg["connections"] if c["id"] == cid), None)
+    if not src:
+        return JSONResponse({"error": "no such connection"}, status_code=404)
+
+    body = await request.json() if await request.body() else {}
+    group = src.get("group", "")
+    taken = {c["name"] for c in cfg["connections"] if c.get("group", "") == group}
+    name = (body.get("name") or "").strip() or next_clone_name(src["name"], taken)
+
+    clone = {**src, "id": uuid.uuid4().hex, "name": name}
+    cfg["connections"] = sorted(cfg["connections"] + [clone],
+                                key=lambda c: (c["group"], c["name"]))
+    store.save_config(cfg)
+    vault.put(clone["id"], vault.get(cid))
+    return JSONResponse(clone)
 
 
 @api
@@ -1079,6 +1121,7 @@ app = Starlette(
         Route("/api/vault/change", vault_change, methods=["POST"]),
         Route("/api/connections", connections, methods=["GET", "POST"]),
         Route("/api/connections/{cid}", delete_connection, methods=["DELETE"]),
+        Route("/api/connections/{cid}/clone", clone_connection, methods=["POST"]),
         Route("/api/macros", macros_list, methods=["GET", "POST"]),
         Route("/api/macros/{name}", macro_delete, methods=["DELETE"]),
         Route("/api/logs", logs_list),

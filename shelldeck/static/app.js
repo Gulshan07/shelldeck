@@ -199,6 +199,8 @@ function renderTree() {
           <span class="conn-actions">
             <button class="sftp" data-id="${c.id}" aria-label="Browse files on ${esc(c.name)}"
                     title="Browse files (SFTP)">${icon("folder")}</button>
+            <button class="clone" data-id="${c.id}" aria-label="Clone ${esc(c.name)}"
+                    title="Clone">${icon("copy")}</button>
             <button class="edit" data-id="${c.id}" aria-label="Edit ${esc(c.name)}"
                     title="Edit">${icon("edit")}</button>
             <button class="del" data-id="${c.id}" aria-label="Delete ${esc(c.name)}"
@@ -243,6 +245,16 @@ function renderTree() {
     b.onclick = (e) => { e.stopPropagation(); fn(b.dataset.id, e); });
   on(".sftp", (id, e) => openSession(id, "sftp", e.ctrlKey || e.metaKey));
   on(".edit", (id) => openEditor(conns.find((c) => c.id === id)));
+  // The clone lands in the same group as "<name>-1" with the credentials copied.
+  // Then open it for editing, since you clone a host in order to change something.
+  on(".clone", async (id) => {
+    try {
+      const clone = await api(`/api/connections/${id}/clone`, { method: "POST" });
+      await loadTree();
+      toast(`Cloned as ${clone.name}`, "ok");
+      openEditor(conns.find((c) => c.id === clone.id));
+    } catch (err) { toast("Could not clone: " + err.message, "err"); }
+  });
   on(".del", async (id) => {
     const c = conns.find((x) => x.id === id);
     if (!await confirmDlg(`Delete ${c ? c.name : "this connection"}?`,
