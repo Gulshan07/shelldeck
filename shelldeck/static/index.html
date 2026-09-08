@@ -62,7 +62,7 @@
               title="Light / dark theme"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sun"/></svg></button>
     </div>
     <div class="toolbar">
-      <button id="new-btn" class="btn primary" title="New connection">
+      <button id="new-btn" class="btn primary" title="New connection (Alt+N)">
         <svg class="ic" viewBox="0 0 24 24"><use href="#i-plus"/></svg><span>New</span></button>
       <span class="tool-gap"></span>
       <button id="import-btn" class="icon-btn" aria-label="Import connections from ssh_config or Ásbrú"
@@ -79,7 +79,7 @@
     <div class="search-wrap">
       <svg class="ic search-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
       <input id="filter" placeholder="Search name, host, user, group…"
-             aria-label="Search connections by name, host, IP, user or group">
+             aria-label="Search connections by name, host, IP, user or group (Alt+F)">
     </div>
     <div id="tree"></div>
     <div id="vpn-box">
@@ -403,6 +403,10 @@
       <tr><td><b>Click</b> a connection</td><td>opens a terminal in a new tab</td></tr>
       <tr><td><kbd>Ctrl</kbd> + click</td><td>opens it <b>beside</b> the current one (split view)</td></tr>
       <tr><td><b>folder</b> icon on a row</td><td>opens a file browser (SFTP) instead of a terminal</td></tr>
+      <tr><td><b>grid</b> icon on a row (<kbd>Alt</kbd>+<kbd>I</kbd>)</td><td>starts <b>2 to 7
+        instances</b> of the same host, side by side in one tab — turn on <b>broadcast</b> and you
+        have several shells on one box taking the same input. More than 7 leaves the panes too
+        narrow to read.</td></tr>
       <tr><td>First time to a host</td><td>you confirm its fingerprint once, then it's trusted</td></tr>
       <tr><td>a small <b>bolt</b> next to a name</td><td>that connection runs a macro automatically
         when it opens (see Automation below)</td></tr>
@@ -508,6 +512,14 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
     <h3>Keyboard</h3>
     <table>
       <tr><td><kbd>F1</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>N</kbd></td><td>new connection</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>F</kbd></td><td>jump to the search box</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>B</kbd></td><td>toggle broadcast in the current tab</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>L</kbd></td><td>lock the vault</td></tr>
+      <tr><td colspan="2"><b>With a connection focused</b> (Tab to it):</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>E</kbd></td><td>edit it</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>D</kbd></td><td>clone it</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>I</kbd></td><td>start several instances of it</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>previous / next tab</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>close any dialog</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>move through the connection list and every control</td></tr>
@@ -515,6 +527,11 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
         opens it beside the current one instead</td></tr>
       <tr><td><kbd>Enter</kbd> on a group header</td><td>collapse or expand that group</td></tr>
     </table>
+    <p class="note">Shortcuts use <b>Alt</b> rather than Ctrl because your browser
+      already owns <kbd>Ctrl</kbd>+<kbd>T</kbd>, <kbd>W</kbd>, <kbd>N</kbd>,
+      <kbd>D</kbd> and <kbd>L</kbd>. A focused terminal keeps every key, so
+      <kbd>Alt</kbd>+<kbd>B</kbd> and <kbd>Alt</kbd>+<kbd>F</kbd> still work as
+      readline's word-movement inside a shell — click the sidebar first.</p>
   </section>
 
   <section>

@@ -74,6 +74,7 @@ model below.
 - **Export** a secret-free bundle to share your setup with teammates
 - **Clone a connection** — same group, credentials carried over, named
   `name-1`; the fast way to add the next box in a fleet
+- **Start 2–7 instances** of one host side by side in a single tab
 - Groups with drag-to-organise, collapse, and search
 
 **The UI**

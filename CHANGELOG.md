@@ -22,6 +22,10 @@ used in place.
   server-side search.
 
 **Automation**
+- Start 2–7 instances of one host side by side in a tab.
+- Keyboard shortcuts on Alt (the browser owns the Ctrl combinations), listed
+  under F1: new, search, broadcast, lock, and edit/clone/instances on the
+  focused connection.
 - Clusters — broadcast typing to every terminal in a tab, or open a whole group
   into one tab in a click.
 - Macros — `expect`/`send`/`sleep` scripts, attachable per connection, able to

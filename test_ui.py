@@ -20,6 +20,7 @@ import asyncssh, uvicorn, websockets
 from shelldeck import store, server
 
 MASTER = "ui-master-pw"
+MAX_INSTANCES = 7   # must match app.js
 SSHD_PORT, SSH_PW = 2294, "pw"
 
 
@@ -178,6 +179,57 @@ async def main():
             row: parseFloat(getComputedStyle(document.querySelector('.conn-name')).fontSize)})"""))
         assert size["group"] > size["row"], f"group heading is not bigger than its rows: {size}"
         print(f"ok  empty state guides the user; group {size['group']}px > row {size['row']}px")
+
+        # N instances: the picker must offer 2..7 and never more, and opening
+        # them must really produce that many panes in one tab.
+        opts = json.loads(await c.js("""(async () => {
+            const p = askInstances(conns[0].id);
+            await new Promise(r => setTimeout(r, 300));
+            const labels = [...document.querySelectorAll('#pick-list .pick-row')]
+                             .map(b => b.textContent.trim());
+            document.querySelector('#pick-cancel').click();
+            await p;
+            return JSON.stringify(labels);
+        })()"""))
+        assert opts == [f"{n} instances" for n in range(2, 8)], opts
+        before = await c.js("tabs.length")
+        await c.js(f'openInstances(conns[0].id, {MAX_INSTANCES})')
+        await asyncio.sleep(2)
+        assert await c.js("tabs.length") == before + 1, "instances should open one tab"
+        assert await c.js("activeTab.panes.length") == MAX_INSTANCES
+        # asking for more than the cap must clamp, not open 20 unreadable panes
+        await c.js('openInstances(conns[0].id, 20)')
+        await asyncio.sleep(2)
+        assert await c.js("activeTab.panes.length") == MAX_INSTANCES, \
+            "the instance count is not capped"
+        print(f"ok  instances: picker offers 2-{MAX_INSTANCES}, count is capped")
+        while await c.js("tabs.length"):        # back to a clean slate
+            await c.js("closeTab(tabs[0])")
+        await asyncio.sleep(0.5)
+
+        # Alt shortcuts must fire, and must NOT fire inside a terminal: Alt+B and
+        # Alt+F are readline word-movement, which a shell user needs more.
+        async def alt(code):
+            for t in ("keyDown", "keyUp"):
+                await c.call("Input.dispatchKeyEvent", type=t, key="Alt", code=code,
+                             modifiers=1, windowsVirtualKeyCode=ord(code[-1]))
+            await asyncio.sleep(0.4)
+
+        await c.js('document.querySelector(".conn").focus()')
+        await alt("KeyN")
+        assert await c.js('document.querySelector("#editor").open'), \
+            "Alt+N did not open the connection editor"
+        await c.js('document.querySelector("#editor").close("cancel")')
+        await asyncio.sleep(0.3)
+
+        await c.js('document.querySelector(".conn").focus()')
+        await alt("KeyE")
+        assert await c.js('document.querySelector("#editor").open'), \
+            "Alt+E on a focused connection did not open the editor"
+        assert await c.js('document.querySelector("#conn-form").id.value') != "", \
+            "Alt+E opened a blank editor instead of editing the focused connection"
+        await c.js('document.querySelector("#editor").close("cancel")')
+        print("ok  Alt+N and Alt+E fire, Alt+E edits the focused row")
 
         # --- accessibility: the app must be usable without a mouse -----------
         # Every visible control needs an accessible name, or a screen reader

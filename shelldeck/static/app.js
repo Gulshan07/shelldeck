@@ -39,7 +39,7 @@ function pick(title, note, items) {
     $("#pick-note").textContent = note || "";
     const list = $("#pick-list");
     list.innerHTML = items.map((it, i) =>
-      `<button class="pick-row" data-i="${i}">${icon("zap")}<span>${esc(it.label)}</span>${
+      `<button class="pick-row" data-i="${i}">${icon(it.icon || "zap")}<span>${esc(it.label)}</span>${
         it.hint ? `<small>${esc(it.hint)}</small>` : ""}</button>`).join("");
     const dlg = $("#pick-dlg");
     const done = (v) => { resolve(v); dlg.close(); };
@@ -199,10 +199,13 @@ function renderTree() {
           <span class="conn-actions">
             <button class="sftp" data-id="${c.id}" aria-label="Browse files on ${esc(c.name)}"
                     title="Browse files (SFTP)">${icon("folder")}</button>
+            <button class="instances" data-id="${c.id}"
+                    aria-label="Open several instances of ${esc(c.name)}"
+                    title="Start N instances side by side">${icon("grid")}</button>
             <button class="clone" data-id="${c.id}" aria-label="Clone ${esc(c.name)}"
-                    title="Clone">${icon("copy")}</button>
+                    title="Clone (Alt+D)">${icon("copy")}</button>
             <button class="edit" data-id="${c.id}" aria-label="Edit ${esc(c.name)}"
-                    title="Edit">${icon("edit")}</button>
+                    title="Edit (Alt+E)">${icon("edit")}</button>
             <button class="del" data-id="${c.id}" aria-label="Delete ${esc(c.name)}"
                     title="Delete">${icon("trash")}</button>
           </span>
@@ -244,6 +247,7 @@ function renderTree() {
   const on = (cls, fn) => $("#tree").querySelectorAll(cls).forEach((b) =>
     b.onclick = (e) => { e.stopPropagation(); fn(b.dataset.id, e); });
   on(".sftp", (id, e) => openSession(id, "sftp", e.ctrlKey || e.metaKey));
+  on(".instances", (id) => askInstances(id));
   on(".edit", (id) => openEditor(conns.find((c) => c.id === id)));
   // The clone lands in the same group as "<name>-1" with the credentials copied.
   // Then open it for editing, since you clone a host in order to change something.
@@ -783,7 +787,8 @@ function renderPaneEmpty(panes) {
         ${tip(icon("grid"), "on a group heading opens every server in that group, in one tab")}
         ${tip("broadcast", "then sends what you type to every terminal in the tab at once")}
         ${tip(icon("folder"), "on a connection browses its files over SFTP")}
-        ${tip("<kbd>F1</kbd>", "the manual, any time")}
+        ${tip(icon("copy"), "clones a connection, credentials and all")}
+        ${tip("<kbd>F1</kbd>", "the manual and every keyboard shortcut")}
       </div>
       <div class="acts">
         <button class="btn primary" id="pe-new">${icon("plus")}<span>New connection</span></button>
@@ -933,6 +938,30 @@ function openSession(cid, kind, split) {
 
 // Open every connection in a group as split terminals in one new tab, ready to
 // broadcast. A big group makes tiny panes, so confirm past a handful.
+// Ásbrú's "Start > N instances": the same host opened several times side by
+// side in one tab, ready to broadcast. Capped at 7 -- past that the panes are
+// too narrow to read, and a fleet of 8 is what groups are for.
+const MAX_INSTANCES = 7;
+
+function openInstances(cid, n) {
+  const c = conns.find((x) => x.id === cid);
+  if (!c) return;
+  const tab = newTab();
+  for (let i = 0; i < Math.min(n, MAX_INSTANCES); i++) tab.panes.push(termPane(c));
+  activeTab = tab;
+  render();
+}
+
+async function askInstances(cid) {
+  const c = conns.find((x) => x.id === cid);
+  if (!c) return;
+  const n = await pick(`Start ${c.name}`,
+    "Opens this many terminals on the same host, side by side in one tab.",
+    Array.from({ length: MAX_INSTANCES - 1 }, (_, i) => ({
+      label: `${i + 2} instances`, value: i + 2, icon: "grid" })));
+  if (n) openInstances(cid, n);
+}
+
 async function openGroup(gval) {
   const list = conns.filter((c) => (c.group || "") === gval);
   if (!list.length) return;
@@ -1148,6 +1177,36 @@ $("#help-btn").onclick = () => $("#help").showModal();
 $("#help-close").onclick = () => $("#help").close();
 addEventListener("keydown", (e) => {
   if (e.key === "F1") { e.preventDefault(); $("#help").open ? $("#help").close() : $("#help").showModal(); }
+});
+
+// Shortcuts use Alt, not Ctrl. This runs in a browser, and the browser owns
+// Ctrl+D, Ctrl+T, Ctrl+W, Ctrl+N and Ctrl+L -- intercepting them is unreliable
+// and rude. So Ásbrú's Ctrl+D becomes Alt+D; Alt+E matches Ásbrú exactly.
+const ALT_KEYS = {
+  N: () => $("#new-btn").click(),
+  F: () => { $("#filter").focus(); $("#filter").select(); },
+  B: () => $("#bcast-btn")?.click(),
+  L: () => $("#lock-btn").click(),
+  // These act on the connection the keyboard is on, which is why rows are
+  // focusable in the first place.
+  E: (row) => row && openEditor(conns.find((c) => c.id === row.dataset.id)),
+  D: (row) => row && $(`.conn[data-id="${row.dataset.id}"] .clone`)?.click(),
+  I: (row) => row && askInstances(row.dataset.id),
+};
+
+addEventListener("keydown", (e) => {
+  if (!e.altKey || e.ctrlKey || e.metaKey) return;
+  // A focused terminal keeps every key. Alt+B and Alt+F are readline's
+  // backward-word/forward-word, and stealing those from a shell would be a
+  // worse bug than having no shortcut at all.
+  if (document.activeElement?.closest?.(".xterm")) return;
+  // e.code, not e.key: on macOS Option+d produces "∂", and a non-QWERTY
+  // layout reports a different letter entirely.
+  const letter = /^Key([A-Z])$/.exec(e.code || "")?.[1];
+  const fn = letter && ALT_KEYS[letter];
+  if (!fn) return;
+  e.preventDefault();
+  fn(document.activeElement?.closest?.(".conn"));
 });
 
 addEventListener("resize", () => activeTab && activeTab.panes.forEach((p) => p.resize && p.resize()));
