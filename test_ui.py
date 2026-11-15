@@ -7,7 +7,7 @@ outran the socket, and a hidden input surviving form.reset(). This is the guard.
 Skips cleanly when Chrome is absent.
 Run: .venv/bin/python test_ui.py
 """
-import asyncio, json, os, random, shutil, socket, subprocess, sys, tempfile, threading, time
+import asyncio, json, os, random, re, shutil, socket, subprocess, sys, tempfile, threading, time
 import urllib.request
 
 CHROME = next((c for c in ("google-chrome", "chromium", "chromium-browser") if shutil.which(c)), None)
@@ -20,6 +20,9 @@ import asyncssh, uvicorn, websockets
 from shelldeck import store, server
 
 MASTER = "ui-master-pw"
+MIGRATION = ("otpauth-migration://offline?data=CigKCkhlbGxvId6tvu8SC2d1bHNoYW5AdnBuGgdWaXRyYXlhIAEoATACCj4KIDEy"
+             "MzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyEgtvcHNAZXhhbXBsZRoHRXhhbXBsZSACKAIwAgojCg5jb3VudGVyLXNl"
+             "Y3JldBIDb2xkGgZMZWdhY3kgASgBMAEQARgBIAA%3D")
 MAX_INSTANCES = 7   # must match app.js
 SSHD_PORT, SSH_PW = 2294, "pw"
 
@@ -160,6 +163,117 @@ async def main():
             "vpn hidden id survived reset()"
         await c.js('document.querySelector("#vpn-editor").close("cancel")')
         print("ok  vpn form clears its hidden id too")
+
+        # authenticator chooser: only the chosen flow's field shows
+        q = 'document.querySelector'
+        vis = q + '("%s").offsetParent !== null'
+        await c.js('openVpnEditor(null)')
+        assert await c.js(q + '("#vpn-form").totp_ui.value') == "none"
+        assert not await c.js(vis % "#totp-input") and not await c.js(vis % "#totp-qr-zone")
+        await c.js(q + '("#vpn-form [name=totp_ui][value=qr]").click()')
+        assert await c.js(vis % "#totp-qr-zone") and not await c.js(vis % "#totp-input")
+        await c.js(q + '("#vpn-form [name=totp_ui][value=paste]").click()')
+        assert await c.js(vis % "#totp-input") and not await c.js(vis % "#totp-qr-zone")
+        assert not await c.js(vis % "#totp-accounts")
+        print("ok  authenticator chooser shows one flow at a time")
+
+        # several accounts in a pasted export -> picker, then the current code
+        await c.js(f'''{q}("#vpn-form").name.value = "picker";
+                      {q}("#totp-input").value = {MIGRATION!r}; saveVpn()''')
+        await asyncio.sleep(1)
+        assert await c.js(q + '("#vpn-editor").open'), "a save that needs an account pick closed the form"
+        assert await c.js(q + '("#totp-accounts").options.length') == 2
+        assert "Vitraya" in await c.js(q + '("#totp-accounts").options[0].textContent')
+        # changing the pasted text makes the old account list meaningless
+        await c.js(q + '("#totp-input").value = "JBSWY3DPEHPK3PXP";'
+                   + q + '("#totp-input").dispatchEvent(new Event("input", {bubbles: true}))')
+        assert not await c.js(vis % "#totp-accounts"), "a stale account picker survived new input"
+        await c.js(q + f'("#totp-input").value = {MIGRATION!r}; saveVpn()')
+        await asyncio.sleep(1)
+        await c.js(q + '("#totp-accounts").value = "0"; saveVpn()')
+        await asyncio.sleep(1)
+        shown = await c.js(q + '("#totp-now").textContent')
+        assert re.search(r"\d{3} \d{3}", shown), shown
+        assert await c.js(q + '("#vpn-editor").open'), "the form closed before the code could be compared"
+        assert "JBSWY" not in await c.js('document.documentElement.outerHTML'), "key rendered into the page"
+        assert await c.js(q + '("#totp-input").value') == "", "the pasted link is still in the field"
+        # an edit made after the code is shown must not be thrown away by "Done"
+        assert await c.js(q + '("#vpn-save").textContent') == "Done"
+        await c.js(q + '("#vpn-form").username.value = "late-edit";'
+                   + q + '("#vpn-form").username.dispatchEvent(new Event("input", {bubbles: true}))')
+        assert await c.js(q + '("#vpn-save").textContent') == "Save"
+        await c.js('saveVpn()')
+        await asyncio.sleep(1)
+        assert await c.js('vpns.find((v) => v.name === "picker").username') == "late-edit"
+        # cancelling leaves nothing key-bearing in the closed form
+        await c.js('openVpnEditor(null);' + q + '("#vpn-form [name=totp_ui][value=paste]").click();'
+                   + q + '("#totp-input").value = "JBSWY3DPEHPK3PXP";' + q + '("#vpn-editor").close("cancel")')
+        assert await c.js(q + '("#totp-input").value') == "", "a cancelled form kept the key in the page"
+        print("ok  pasted export: account picker, then the current code, never the key")
+
+        # a stored key shows as stored; dropping it asks first, then deletes it
+        await c.js('openVpnEditor(vpns.find((v) => v.name === "picker"))')
+        assert await c.js(q + '("#vpn-form").totp_ui.value') == "paste"
+        assert "stored" in await c.js(q + '("#totp-note").textContent')
+        await c.js(q + '("#vpn-form [name=totp_ui][value=ask]").click(); saveVpn(); 0')
+        await asyncio.sleep(0.5)
+        assert await c.js(q + '("#confirm-dlg").open'), "deleting a stored key did not ask first"
+        assert "cannot recover" in await c.js(q + '("#confirm-body").textContent')
+        await c.js(q + '("#confirm-yes").click()')
+        await asyncio.sleep(1)
+        assert await c.js('vpns.find((v) => v.name === "picker").totp_mode') == "ask"
+        assert not await c.js(q + '("#vpn-editor").open')
+        print("ok  switching away from a stored key confirms, then deletes it")
+
+        # status needs_code -> the code box opens once and posts what was typed
+        await c.js('''window._posts = []; window._f = window.fetch; window._st = "needs_code";
+            window.fetch = (u, o) => {
+              if (String(u).includes("/api/vpn/code")) { _posts.push(o.body); window._st = "connecting";
+                return Promise.resolve(new Response(JSON.stringify({state:"connecting",log:[]}))); }
+              if (String(u).includes("/api/vpn/status")) return Promise.resolve(new Response(JSON.stringify(
+                {state:_st, profile_id:"v", name:"vee", pending_code:_st === "needs_code", log:[]})));
+              return _f(u, o); }; pollVpn()''')
+        await asyncio.sleep(1)
+        assert await c.js(q + '("#vpn-code").open'), "needs_code did not open the code box"
+        assert "vee" in await c.js(q + '("#vpn-code-title").textContent')
+        await c.js(q + '("#vpn-code-input").value = "123456";' + q + '("#vpn-code-form").requestSubmit()')
+        await asyncio.sleep(1)
+        assert await c.js('JSON.parse(_posts[0]).code') == "123456"
+        assert not await c.js(q + '("#vpn-code").open')
+        await c.js('window.fetch = window._f; pollVpn()')
+        await asyncio.sleep(0.5)
+        print("ok  needs_code opens the code box and submits the typed code")
+
+        # a screenshot of a QR code is decoded in the page, never uploaded
+        import base64 as _b64
+        png = _b64.b64encode(open("testdata/otpauth-qr.png", "rb").read()).decode()
+        blob = f'new Blob([Uint8Array.from(atob("{png}"), (ch) => ch.charCodeAt(0))], {{type:"image/png"}})'
+        URI = "otpauth://totp/Shelldeck:test?secret=JBSWY3DPEHPK3PXP&issuer=Shelldeck"
+        assert await c.js(f'decodeQrImage({blob})') == URI
+        err = await c.js('decodeQrImage(new Blob(["not an image"], {type:"text/plain"}))'
+                         '.then(() => "decoded", (e) => e.message)')
+        assert err == "no QR code found in that image", err
+        # choosing the file fills the hidden field and says so; saving then stores the key
+        await c.js('window._seen = []; window._f = window.fetch;'
+                   'window.fetch = (u, o) => { _seen.push(String(u)); return _f(u, o); };'
+                   'openVpnEditor(null);' + q + '("#vpn-form").name.value = "from-qr";'
+                   + q + '("#vpn-form [name=totp_ui][value=qr]").click();'
+                   f'readQrInto({blob})')
+        assert await c.js(q + '("#totp-input").value') == URI
+        assert "QR code read" in await c.js(q + '("#totp-qr-status").textContent')
+        assert not await c.js(vis % "#totp-input"), "the decoded link is shown on screen"
+        await c.js('readQrInto(new Blob(["x"], {type:"text/plain"}))')
+        assert await c.js(q + '("#totp-input").value') == ""
+        assert "no QR code found" in await c.js(q + '("#totp-qr-status").textContent')
+        await c.js(f'readQrInto({blob})')
+        await c.js('saveVpn()')
+        await asyncio.sleep(1)
+        assert re.search(r"\d{3} \d{3}", await c.js(q + '("#totp-now").textContent'))
+        assert await c.js('vpns.find((v) => v.name === "from-qr").totp_mode') == "stored"
+        sent = await c.js('window.fetch = window._f; _seen.join(" ")')
+        assert "/api/vpns" in sent and all("/api/vpn" in u for u in sent.split()), sent
+        await c.js(q + '("#vpn-editor").close("cancel")')
+        print("ok  QR screenshot decodes in the browser and stores the key; a non-image fails cleanly")
 
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")

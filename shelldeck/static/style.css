@@ -397,6 +397,21 @@ details label { margin-top:9px; }
 #editor menu button[value="save"], #vpn-editor menu button[value="save"] {
   background:var(--accent); border-color:var(--accent); color:var(--accent-fg); font-weight:600; }
 
+/* --- authenticator chooser ---------------------------------------------- */
+#totp-box { border:1px solid var(--line); border-radius:var(--r); padding:10px 12px 4px;
+  margin:0; display:grid; gap:7px; min-width:0; }
+#totp-box legend { font-size:12.5px; color:var(--fg-2); padding:0 5px; }
+#totp-qr-zone { border:1px dashed var(--line); border-radius:var(--r); padding:10px; }
+#totp-qr-zone.over { border-color:var(--accent); background:var(--accent-weak); }
+#totp-qr-status:empty { display:none; }
+#totp-now { margin:2px 0 6px; font-size:13px; color:var(--fg); }
+#totp-now:empty, #totp-note:empty, #vpn-code-error:empty { display:none; }
+#totp-now b { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:15px;
+  letter-spacing:.06em; }
+#vpn-code-input { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:20px;
+  letter-spacing:.18em; text-align:center; }
+.note.bad { color:var(--danger); }
+
 /* --- import / export --------------------------------------------------- */
 .export-row { display:flex; align-items:center; gap:14px; margin:14px 0 4px;
   padding:12px; border:1px solid var(--line); border-radius:var(--r); background:var(--raised); }

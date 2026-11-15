@@ -8,6 +8,7 @@ os.environ["SHELLDECK_OPENVPN_NO_SUDO"] = "1"
 os.environ["PATH"] = os.path.abspath("testbin") + os.pathsep + os.environ["PATH"]
 
 from shelldeck import store
+import shelldeck.vpn as vpn_mod
 from shelldeck.vpn import Vpn, VpnError, totp, RUN_DIR
 
 PW = "corporate-secret"
@@ -29,6 +30,20 @@ async def run(mode, ovpn, profile_extra=None, timeout=25):
     while time.time() < end and v.state == "connecting":
         await asyncio.sleep(0.2)
     return v
+
+
+async def start(mode, ovpn, secret, prof_extra):
+    os.environ.update(FAKE_VPN_MODE=mode, FAKE_VPN_PASSWORD=PW, FAKE_VPN_SEED=SEED)
+    v = Vpn()
+    await v.up({"id": "p1", "name": "Vitraya", "username": "gulshan", "dialect": "auto", **prof_extra}, secret)
+    return v
+
+
+async def until(cond, timeout=15):
+    end = time.time() + timeout
+    while time.time() < end and not cond():
+        await asyncio.sleep(0.1)
+    assert cond(), "timed out waiting"
 
 
 async def main():
@@ -116,6 +131,114 @@ async def main():
         raise AssertionError("missing .ovpn should be refused")
     except VpnError as e:
         print("ok  refuses a profile with no .ovpn:", e)
+
+    # 8. ask mode: no key stored, the code is typed when the server wants it
+    ASK = {"totp_mode": "ask"}
+    nokey = {"ovpn": OVPN_SC, "password": PW}
+
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    assert v.status()["pending_code"] is True
+    try:
+        await v.up({"id": "p1", "name": "Vitraya", "dialect": "auto", **ASK}, nokey)
+        raise AssertionError("a second connect was allowed while waiting for a code")
+    except VpnError:
+        pass
+    for bad in ("12345", "abcdef", "", "123456789"):
+        try:
+            v.submit_code(bad)
+            raise AssertionError(bad)
+        except VpnError:
+            pass
+    c = totp(SEED)
+    v.submit_code(c[:3] + " " + c[3:])                             # typed with a space
+    await until(lambda: v.state == "connected")
+    assert v.status()["pending_code"] is False
+    assert not any(c in line for line in v.log), "the code was logged"
+    try:
+        v.submit_code(c)
+        raise AssertionError("accepted a code nobody asked for")
+    except VpnError:
+        pass
+    await v.down()
+    print("ok  ask mode: waits for a typed code, then connects")
+
+    v = await start("ok", OVPN_PLAIN, {"ovpn": OVPN_PLAIN, "password": PW}, ASK)
+    await until(lambda: v.state == "needs_code")
+    v.submit_code(totp(SEED))
+    await until(lambda: v.state == "connected")
+    await v.down()
+    print("ok  ask mode: typed code is appended to the password for a plain profile")
+
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    v.submit_code("000000")
+    await until(lambda: v.state == "failed")
+    assert v.detail == vpn_mod.REJECTED_ASK, v.detail
+    await v.down()
+    print("ok  ask mode: a wrong code fails with a clear reason")
+
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    await v.down()
+    assert v.state == "disconnected" and v.status()["pending_code"] is False
+    v = await start("ok", OVPN_SC, nokey, ASK)                     # a later connect still works
+    await until(lambda: v.state == "needs_code")
+    v.submit_code(totp(SEED))
+    await until(lambda: v.state == "connected")
+    await v.down()
+    print("ok  ask mode: disconnecting while waiting leaves nothing hung")
+
+    vpn_mod.CONNECT_TIMEOUT, vpn_mod.CODE_WAIT = 2, 4
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    await asyncio.sleep(3)                                          # past the connect deadline
+    assert v.state == "needs_code", (v.state, v.detail)
+    await until(lambda: v.state == "failed", timeout=5)
+    assert v.detail == "no authenticator code entered", v.detail
+    # walking away from the prompt must not leave root openvpn or the private key behind
+    await until(lambda: v._proc.returncode is not None, timeout=8)
+    assert not (RUN_DIR / "p1.ovpn").exists() and not (RUN_DIR / "p1.mgmt").exists(), \
+        "an abandoned code prompt left the private key on disk"
+    assert v.state == "failed" and v.detail == "no authenticator code entered", (v.state, v.detail)
+    await v.down()
+    vpn_mod.CONNECT_TIMEOUT, vpn_mod.CODE_WAIT = 90, 300
+    print("ok  ask mode: the connect deadline pauses, the code wait has its own limit")
+
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    v._proc.kill()                                                  # openvpn dies under the prompt
+    await until(lambda: v.state == "failed")
+    assert v.status()["pending_code"] is False and "openvpn exited" in v.detail, v.detail
+    v = await start("ok", OVPN_SC, nokey, ASK)                     # and connect is not blocked
+    await until(lambda: v.state == "needs_code")
+    await v.down()
+    print("ok  ask mode: openvpn dying under the prompt is reported, not left asking")
+
+    v = await start("reauth", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    v.submit_code(totp(SEED))
+    await until(lambda: v.state == "connected" and v.pending_code)
+    assert v.state == "connected" and v.ip == "10.8.0.7" and v.status()["pending_code"] is True
+    v.submit_code(totp(SEED))
+    await until(lambda: any("REAUTH OK" in l for l in v.log))
+    assert v.state == "connected" and not v.pending_code
+    await v.down()
+    print("ok  ask mode: re-auth on a live tunnel asks again without dropping")
+
+    # 9. a stored key the server refuses: say where to look
+    v = await start("ok", OVPN_SC, {"ovpn": OVPN_SC, "password": PW, "totp_secret": "GEZDGNBVGY3TQOJQ"}, {})
+    await until(lambda: v.state == "failed")
+    assert v.detail == vpn_mod.REJECTED_STORED, v.detail
+    await v.down()
+    print("ok  stored key rejected: the reason points at the clock")
+
+    # 10. what real openvpn does on a refused login: AUTH_FAILED in its log, then exit
+    v = await start("authfailed", OVPN_SC, {"ovpn": OVPN_SC, "password": PW, "totp_secret": SEED}, {})
+    await until(lambda: v.state == "failed")
+    assert v.detail == vpn_mod.REJECTED_STORED, v.detail
+    await v.down()
+    print("ok  AUTH_FAILED in openvpn's own log is reported as a rejected login")
 
     print("\nvpn passed")
 

@@ -13,23 +13,153 @@ import re
 import secrets as pysecrets
 import struct
 import time
+import urllib.parse
 
 from . import platform, store
 
 CONNECT_TIMEOUT = 90
+CODE_WAIT = 300              # how long a first connect waits for a typed code
+REJECTED = "authentication rejected"
+# The server rarely says which half was wrong, so neither message pretends to know.
+REJECTED_ASK = REJECTED + " — check the password and the code you typed"
+REJECTED_STORED = REJECTED + " — if the password is right, check this computer's clock"
 RUN_DIR = store.HOME / "run"
 
 
-def totp(secret_b32: str, when: float | None = None, digits: int = 6, period: int = 30) -> str:
+TOTP_ALGORITHMS = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
+NOT_TOTP = "not a TOTP key, otpauth:// link or Google Authenticator export link"
+NO_HOTP = "counter-based (HOTP) codes are not supported"
+
+
+def totp(secret_b32: str, when: float | None = None, digits: int = 6, period: int = 30,
+         algorithm: str = "SHA1") -> str:
     """RFC 6238 TOTP. Twelve lines of stdlib beats a dependency."""
     raw = re.sub(r"\s+", "", secret_b32).upper()
     raw += "=" * (-len(raw) % 8)
     key = base64.b32decode(raw)
     counter = int((time.time() if when is None else when) // period)
-    mac = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    mac = hmac.new(key, struct.pack(">Q", counter), TOTP_ALGORITHMS[algorithm]).digest()
     off = mac[-1] & 0x0F
     code = (int.from_bytes(mac[off:off + 4], "big") & 0x7FFFFFFF) % (10 ** digits)
     return str(code).zfill(digits)
+
+
+def code_for(secret: dict, when: float | None = None) -> str:
+    """The current code for a vault entry, or "" when it holds no key."""
+    if not secret.get("totp_secret"):
+        return ""
+    return totp(secret["totp_secret"], when, secret.get("totp_digits", 6),
+                secret.get("totp_period", 30), secret.get("totp_algorithm", "SHA1"))
+
+
+def totp_mode_of(profile: dict, secret: dict) -> str:
+    """none | ask | stored. Profiles saved before the setting existed had a key or nothing."""
+    return profile.get("totp_mode") or ("stored" if secret.get("totp_secret") else "none")
+
+
+def _clean_key(text: str) -> str:
+    """Base32 as authenticators show it -> upper case, no spaces, no padding."""
+    key = re.sub(r"[\s=]+", "", text).upper()
+    if len(key) < 10 or not re.fullmatch(r"[A-Z2-7]+", key):
+        raise ValueError(NOT_TOTP)
+    try:
+        base64.b32decode(key + "=" * (-len(key) % 8))
+    except Exception:
+        raise ValueError(NOT_TOTP) from None
+    return key
+
+
+def _account(secret, label="", issuer="", digits=6, period=30, algorithm="SHA1") -> dict:
+    if algorithm not in TOTP_ALGORITHMS or digits not in (6, 7, 8) or not 1 <= period <= 3600:
+        raise ValueError(NOT_TOTP)
+    return {"label": label, "issuer": issuer, "secret": secret,
+            "digits": digits, "period": period, "algorithm": algorithm}
+
+
+def _pb_fields(buf: bytes):
+    """Minimal protobuf reader: yields (field number, value) for varint and
+    length-delimited fields, skipping fixed-width ones."""
+    i = 0
+
+    def varint():
+        nonlocal i
+        shift = n = 0
+        while True:
+            b = buf[i]
+            i += 1
+            n |= (b & 0x7F) << shift
+            shift += 7
+            if not b & 0x80:
+                return n
+
+    while i < len(buf):
+        tag = varint()
+        num, wire = tag >> 3, tag & 7
+        if wire == 0:
+            yield num, varint()
+        elif wire == 2:
+            size = varint()
+            if i + size > len(buf):
+                raise IndexError("truncated")
+            yield num, buf[i:i + size]
+            i += size
+        elif wire in (1, 5):
+            i += 8 if wire == 1 else 4
+        else:
+            raise ValueError("unsupported wire type")
+
+
+def _parse_migration(data: str) -> list:
+    """Google Authenticator's "Export accounts" payload."""
+    try:
+        # '+' is legal base64 but becomes a space in transit often enough to matter.
+        data = urllib.parse.unquote(data).replace(" ", "+").rstrip("=")
+        raw = base64.b64decode(data + "=" * (-len(data) % 4), validate=True)   # padding is often lost
+        entries = [dict(_pb_fields(v)) for num, v in _pb_fields(raw) if num == 1]
+    except Exception:
+        raise ValueError(NOT_TOTP) from None
+    out = []
+    for e in entries:
+        if e.get(6) == 1 or not isinstance(e.get(1), bytes):       # HOTP, or no secret
+            continue
+        text = lambda v: v.decode(errors="replace") if isinstance(v, bytes) else ""
+        out.append(_account(base64.b32encode(e[1]).decode().rstrip("="), text(e.get(2)), text(e.get(3)),
+                            {2: 8}.get(e.get(5), 6), 30,
+                            {2: "SHA256", 3: "SHA512"}.get(e.get(4), "SHA1")))
+    if entries and not out:
+        raise ValueError(NO_HOTP)
+    if not out:
+        raise ValueError(NOT_TOTP)
+    return out
+
+
+def parse_totp_input(text: str) -> list:
+    """Whatever an authenticator hands out -> a list of TOTP accounts.
+
+    Accepts a bare base32 key, an otpauth://totp/ link, or Google
+    Authenticator's otpauth-migration:// export (which may hold several).
+    Raises ValueError with a message fit to show the user.
+    """
+    text = (text or "").strip()
+    low = text.lower()
+    if low.startswith("otpauth-migration://"):
+        query = urllib.parse.urlsplit(text).query
+        data = next((p[5:] for p in query.split("&") if p.startswith("data=")), "")
+        return _parse_migration(data)
+    if low.startswith("otpauth://"):
+        url = urllib.parse.urlsplit(text)
+        if url.netloc.lower() == "hotp":
+            raise ValueError(NO_HOTP)
+        q = {k.lower(): v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
+        if url.netloc.lower() != "totp" or not q.get("secret"):
+            raise ValueError(NOT_TOTP)
+        try:
+            digits, period = int(q.get("digits", 6)), int(q.get("period", 30))
+        except ValueError:
+            raise ValueError(NOT_TOTP) from None
+        return [_account(_clean_key(q["secret"]), urllib.parse.unquote(url.path.lstrip("/")),
+                         q.get("issuer", ""), digits, period, q.get("algorithm", "SHA1").upper())]
+    return [_account(_clean_key(text))]
 
 
 def detect_dialect(ovpn_text: str) -> str:
@@ -81,12 +211,33 @@ class Vpn:
         self._writer = None
         self._task = None
         self._files = []
+        self.pending_code = False
+        self._code = None            # future a typed authenticator code arrives on
+        self._mode = "none"
+
+    def _rejected(self) -> str:
+        return {"ask": REJECTED_ASK, "stored": REJECTED_STORED}.get(self._mode, REJECTED)
+
+    def submit_code(self, code: str):
+        """Hand over the authenticator code the management loop is waiting for."""
+        code = re.sub(r"\s+", "", code or "")
+        if not re.fullmatch(r"\d{6,8}", code):
+            raise VpnError("enter the 6 to 8 digit code")
+        if self._code is None or self._code.done():
+            raise VpnError("not waiting for a code")
+        self._code.set_result(code)
+
+    def _drop_code_wait(self):
+        if self._code is not None and not self._code.done():
+            self._code.set_result(None)
+        self.pending_code = False
 
     def status(self) -> dict:
         return {
             "state": self.state, "detail": self.detail, "name": self.name,
             "profile_id": self.profile_id, "ip": self.ip,
             "uptime": int(time.time() - self.since) if self.since else 0,
+            "pending_code": self.pending_code,
             "log": self.log[-80:],
         }
 
@@ -97,7 +248,7 @@ class Vpn:
     # --- lifecycle -------------------------------------------------------
 
     async def up(self, profile: dict, secret: dict):
-        if self.state in ("connecting", "connected"):
+        if self.state in ("connecting", "connected", "needs_code"):
             raise VpnError(f"{self.name} is already {self.state}")
         if self._proc is not None and self._proc.returncode is None:
             # State can read failed while openvpn is alive (e.g. status was missed).
@@ -119,6 +270,7 @@ class Vpn:
         self.reset()
         self.profile_id, self.name = profile["id"], profile["name"]
         self.state, self.detail = "connecting", "starting openvpn"
+        self._mode = totp_mode_of(profile, secret)
 
         platform.make_private_dir(RUN_DIR)
         cfg = RUN_DIR / f"{profile['id']}.ovpn"
@@ -149,6 +301,15 @@ class Vpn:
         self._task = asyncio.create_task(self._manage(port, mgmt_pw, profile, secret))
 
     async def down(self):
+        self._drop_code_wait()
+        await self._stop()
+        if self._task:
+            self._task.cancel()
+        self._cleanup()
+        self.state, self.detail, self.ip, self.since = "disconnected", "", "", None
+
+    async def _stop(self):
+        """Ask openvpn to exit, then make sure it has."""
         if self._writer:
             with contextlib.suppress(Exception):
                 self._writer.write(b"signal SIGTERM\n")
@@ -159,10 +320,6 @@ class Vpn:
                 # openvpn runs as root under sudo, so terminate() can be denied.
                 self._proc.terminate()
                 await asyncio.wait_for(self._proc.wait(), 5)
-        if self._task:
-            self._task.cancel()
-        self._cleanup()
-        self.state, self.detail, self.ip, self.since = "disconnected", "", "", None
 
     def _cleanup(self):
         for f in self._files:
@@ -190,15 +347,23 @@ class Vpn:
                     if self.state != "connected":
                         self.state, self.detail = "connected", "connected"
                         self.since = time.time()
+                if "AUTH_FAILED" in text:
+                    # A refused login reaches us here, not always on the management socket.
+                    self.state, self.detail, self.since = "failed", self._rejected(), None
                 if "sudo:" in text or "a password is required" in text:
                     self.state = "failed"
                     self.detail = ("openvpn needs root. Store a sudo password in the profile, "
                                    "or allow it in sudoers.")
         await proc.wait()
-        if self.state in ("connecting", "connected"):
+        if self.state == "needs_code":
+            # Died under the prompt: without this the page would keep asking for a
+            # code nothing is waiting for.
+            self.state, self.detail = "failed", f"openvpn exited ({proc.returncode}) while waiting for the code"
+        elif self.state in ("connecting", "connected"):
             self.state = "failed" if self.state == "connecting" else "disconnected"
             self.detail = self.detail or f"openvpn exited ({proc.returncode})"
             self.since = None
+        self._drop_code_wait()
         self._cleanup()
 
     # --- management interface --------------------------------------------
@@ -217,6 +382,7 @@ class Vpn:
             self.state, self.detail = "failed", "management interface never came up"
             return
 
+        deadline = time.time() + CONNECT_TIMEOUT
         dialect = profile.get("dialect") or "auto"
         if dialect == "auto":
             dialect = detect_dialect(secret.get("ovpn", ""))
@@ -256,8 +422,38 @@ class Vpn:
                     yield buf.rstrip("\r")
                     buf = ""
 
+        async def typed_code():
+            """Ask mode: park until submit_code(), without eating the connect deadline."""
+            nonlocal deadline
+            live = self.state == "connected"
+            if not live:
+                self.state, self.detail = "needs_code", "waiting for authenticator code"
+            self.pending_code = True
+            self._code = asyncio.get_running_loop().create_future()
+            began = time.time()
+            try:
+                # A live tunnel waits as long as the server does; a first connect does not.
+                code = await asyncio.wait_for(self._code, None if live else CODE_WAIT)
+            except asyncio.TimeoutError:
+                code = None
+                self.state, self.detail = "failed", "no authenticator code entered"
+                # Nobody is coming: do not leave root openvpn and the private key behind.
+                await self._stop()
+                self._cleanup()
+            finally:
+                self.pending_code = False
+            deadline += time.time() - began
+            if code and self.state == "needs_code":
+                self.state, self.detail = "connecting", "sending password + code"
+            return code
+
         async def answer_auth(challenge_state=None):
-            code = totp(secret["totp_secret"]) if secret.get("totp_secret") else ""
+            if self._mode == "ask":
+                code = await typed_code()
+                if code is None:              # timed out, disconnected, or openvpn went away
+                    return
+            else:
+                code = code_for(secret)
             if challenge_state:                    # dynamic challenge: code only
                 value = f"CRV1::{challenge_state}::{code}"
             else:
@@ -265,7 +461,6 @@ class Vpn:
             await send(f'username "Auth" "{_esc(profile.get("username", ""))}"')
             await send(f'password "Auth" "{_esc(value)}"')
 
-        deadline = time.time() + CONNECT_TIMEOUT
         try:
             stream = lines()
             while True:
@@ -288,8 +483,11 @@ class Vpn:
                 elif line.startswith(">HOLD:"):
                     await send("hold release")
                 elif line.startswith(">PASSWORD:Need 'Auth'"):
-                    self.detail = "sending password + TOTP"
+                    if self.state != "connected":
+                        self.detail = "sending password + TOTP"
                     await answer_auth()
+                    if self.state == "failed":
+                        return
                 elif line.startswith(">PASSWORD:Need 'Private Key'"):
                     await send(f'password "Private Key" "{_esc(secret.get("key_passphrase", ""))}"')
                 elif line.startswith(">PASSWORD:Verification Failed: 'Auth'"):
@@ -298,8 +496,10 @@ class Vpn:
                         # Server wants a fresh code; the last one may simply have expired.
                         self.detail = "answering challenge with a fresh code"
                         await answer_auth(m.group(1))
+                        if self.state == "failed":
+                            return
                     else:
-                        self.state, self.detail = "failed", "authentication rejected"
+                        self.state, self.detail = "failed", self._rejected()
                         return
                 elif line.startswith(">STATE:"):
                     parts = line[len(">STATE:"):].split(",")
@@ -312,7 +512,10 @@ class Vpn:
                             self.since = time.time()
                             self.detail = "connected"
                         elif name == "EXITING":
-                            self.state = "disconnected"
+                            if "auth-failure" in line:
+                                self.state, self.detail = "failed", self._rejected()
+                            elif self.state != "failed":
+                                self.state = "disconnected"
                             return
                 elif line.startswith(">FATAL:") or line.startswith(">LOG:") and ",F," in line:
                     self.state, self.detail = "failed", line.split(":", 1)[-1][:200]

@@ -312,9 +312,26 @@
       the vault and written to disk only while connected.</p>
     <label>Username <input name="username" autocomplete="off"></label>
     <label>Password <input name="password" type="password" autocomplete="new-password"></label>
-    <label>TOTP secret (base32)
-      <input name="totp_secret" type="password" autocomplete="new-password" placeholder="JBSWY3DPEHPK3PXP">
-    </label>
+    <fieldset id="totp-box">
+      <legend>Authenticator code</legend>
+      <label class="check"><input type="radio" name="totp_ui" value="none" checked> None</label>
+      <label class="check"><input type="radio" name="totp_ui" value="ask"> Ask me each time I connect</label>
+      <label class="check"><input type="radio" name="totp_ui" value="paste"> Paste a key or link</label>
+      <label class="check"><input type="radio" name="totp_ui" value="qr"> Read a QR code image</label>
+      <input id="totp-input" type="password" autocomplete="off" hidden
+             aria-label="Authenticator key or link" placeholder="Key, otpauth:// link or Google export link">
+      <div id="totp-qr-zone" hidden>
+        <label>Choose, drop or paste a screenshot of the QR code.
+          <input type="file" id="totp-qr-file" accept="image/*">
+        </label>
+        <p class="note" id="totp-qr-status" role="status"></p>
+      </div>
+      <label id="totp-accounts-label" hidden>Which account is this VPN?
+        <select id="totp-accounts"></select>
+      </label>
+      <p class="note" id="totp-note"></p>
+      <p id="totp-now" role="status"></p>
+    </fieldset>
     <label>Second factor
       <select name="dialect">
         <option value="auto">Auto-detect from the .ovpn</option>
@@ -328,7 +345,23 @@
     <p class="note">openvpn needs root to create the tunnel.</p>
     <menu>
       <button value="cancel" formnovalidate>Cancel</button>
-      <button value="save">Save</button>
+      <button value="save" id="vpn-save">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="vpn-code">
+  <form method="dialog" id="vpn-code-form">
+    <h2 id="vpn-code-title">Enter authenticator code</h2>
+    <p class="note" id="vpn-code-note"></p>
+    <label>Code from your authenticator app
+      <input id="vpn-code-input" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="9" placeholder="123 456" required>
+    </label>
+    <p class="note bad" id="vpn-code-error" role="alert"></p>
+    <menu>
+      <button type="button" id="vpn-code-cancel">Cancel</button>
+      <button id="vpn-code-send" class="btn primary">Send code</button>
     </menu>
   </form>
 </dialog>
@@ -476,10 +509,16 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
   <section>
     <h3>9. VPN (one click, password + code automatic)</h3>
     <p>Add a VPN profile with <b>+</b> next to VPN: pick your <code>.ovpn</code> file, enter the
-    username, password and your <b>authenticator secret</b> (the base32 setup string, not the 6-digit
-    code). Then <b>connect</b> — the code is generated and answered for you. A green dot shows it's up
-    with the assigned IP; the <b>list</b> button shows the log. Needs OpenVPN installed
-    (<code>sudo apt install openvpn</code>).</p>
+    username and password, then choose how the <b>authenticator code</b> is supplied. Then
+    <b>connect</b>. A green dot shows it's up with the assigned IP; the <b>list</b> button shows the
+    log. Needs OpenVPN installed (<code>sudo apt install openvpn</code>).</p>
+    <p><b>Ask me each time</b> works with any authenticator app, including Microsoft Authenticator,
+    which never reveals its key: Shelldeck asks for the 6-digit code when you connect.
+    <b>Paste a key or link</b> and <b>Read a QR code image</b> store the key so the code is generated
+    for you: paste the setup key, an <code>otpauth://</code> link, or Google Authenticator's export
+    link — or give it a screenshot of the QR code (Google Authenticator: <i>Transfer accounts →
+    Export accounts</i>). After saving, the current code is shown once so you can compare it with
+    your phone.</p>
   </section>
 
   <section>
@@ -551,6 +590,7 @@ D 1080                  a SOCKS proxy on your localhost:1080</pre>
 
 <script src="/static/vendor/xterm.js"></script>
 <script src="/static/vendor/xterm-addon-fit.js"></script>
+<script src="/static/vendor/jsQR.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

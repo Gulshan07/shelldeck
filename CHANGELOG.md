@@ -2,6 +2,20 @@
 
 Notable changes per release. Dates are release dates.
 
+## Unreleased
+
+**VPN**
+- Choose how a profile's authenticator code is supplied: typed at connect time
+  (works with any authenticator app, Microsoft Authenticator included), or
+  generated from a key given as a setup key, an `otpauth://` link, Google
+  Authenticator's export link, or a screenshot of the QR code.
+- A Google Authenticator export holding several accounts asks which one to use.
+- The current code is shown once after saving a key, to compare with the phone.
+- A login the server refuses now says so ("authentication rejected …") instead
+  of stopping at `GET_CONFIG`, and points at the computer's clock when the code
+  was generated.
+- TOTP keys using SHA-256/SHA-512, 8 digits or a non-30-second period work.
+
 ## v0.1.0 — 2026-09-06
 
 First public release. Linux only; Windows and macOS are written but unverified,
