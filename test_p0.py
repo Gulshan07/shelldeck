@@ -311,6 +311,14 @@ def test_parse_totp_input():
     assert code_for({}) == ""
 
 
+def test_totp_mode_default():
+    """A profile saved before totp_mode existed keeps behaving as it did."""
+    from shelldeck.vpn import totp_mode_of
+    assert totp_mode_of({}, {"totp_secret": "JBSWY3DPEHPK3PXP"}) == "stored"
+    assert totp_mode_of({}, {}) == "none"
+    assert totp_mode_of({"totp_mode": "ask"}, {"totp_secret": "X"}) == "ask"
+
+
 def test_vpn_password_dialects():
     import base64
     from shelldeck.vpn import build_password, detect_dialect

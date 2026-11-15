@@ -41,6 +41,11 @@ async def fake_sshd():
                                  server_host_keys=[asyncssh.generate_private_key("ssh-ed25519")])
 
 
+MIGRATION = ("otpauth-migration://offline?data=CigKCkhlbGxvId6tvu8SC2d1bHNoYW5AdnBuGgdWaXRyYXlhIAEoATACCj4KIDEy"
+             "MzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyEgtvcHNAZXhhbXBsZRoHRXhhbXBsZSACKAIwAgojCg5jb3VudGVyLXNl"
+             "Y3JldBIDb2xkGgZMZWdhY3kgASgBMAEQARgBIAA%3D")
+
+
 async def main():
     store.init_home()
     await fake_sshd()
@@ -401,7 +406,7 @@ async def main():
             "name": "Vitraya", "username": "gulshan", "dialect": "auto",
             "ovpn": 'client\nstatic-challenge "Enter Authenticator Code" 1\n'
                     '<key>\nSUPER-SECRET-PRIVATE-KEY\n</key>\n',
-            "password": "corporate-secret", "totp_secret": "JBSWY3DPEHPK3PXP",
+            "password": "corporate-secret", "totp_input": "JBSWY3DPEHPK3PXP",
             "sudo_password": "my-sudo-pw"})
         assert r.status_code == 200, r.text
         assert r.json()["detected"] == "scrv1", r.json()
@@ -412,11 +417,44 @@ async def main():
         assert b"SUPER-SECRET-PRIVATE-KEY" not in store.VAULT.read_bytes(), "vault not encrypted"
         print("ok  vpn key, password, TOTP seed and sudo password stay out of config.json")
 
+        assert r.json()["totp_mode"] == "stored" and len(r.json()["totp_now"]) == 6, r.json()
         vid = r.json()["id"]
-        await http.post("/api/vpns", json={"id": vid, "name": "Vitraya renamed"})
+        r = await http.post("/api/vpns", json={"id": vid, "name": "Vitraya renamed"})
+        assert r.json()["totp_mode"] == "stored" and "totp_now" not in r.json(), r.json()
         kept = server.vault.get("vpn:" + vid)
         assert kept["totp_secret"] == "JBSWY3DPEHPK3PXP" and "SUPER-SECRET" in kept["ovpn"]
         print("ok  editing a profile keeps its .ovpn and secrets")
+
+        base = {"id": vid, "name": "Vitraya", "username": "gulshan", "dialect": "auto"}
+        r = await http.post("/api/vpns", json={**base, "totp_input": MIGRATION})
+        assert r.status_code == 409, r.text
+        assert r.json()["accounts"] == [
+            {"index": 0, "label": "gulshan@vpn", "issuer": "Vitraya"},
+            {"index": 1, "label": "ops@example", "issuer": "Example"}]
+        assert "JBSWY" not in r.text and "GEZDG" not in r.text, "a key travelled back to the browser"
+        assert server.vault.get("vpn:" + vid)["totp_secret"] == "JBSWY3DPEHPK3PXP", "409 must save nothing"
+
+        r = await http.post("/api/vpns", json={**base, "totp_input": MIGRATION, "totp_account": 1})
+        kept = server.vault.get("vpn:" + vid)
+        assert r.status_code == 200 and len(r.json()["totp_now"]) == 8, r.text
+        assert "JBSWY" not in r.text and "GEZDG" not in r.text
+        assert (kept["totp_digits"], kept["totp_algorithm"]) == (8, "SHA256") and "totp_period" not in kept
+
+        for bad in ({"totp_input": "hello world!"}, {"totp_input": MIGRATION, "totp_account": 7},
+                    {"totp_mode": "sometimes"}):
+            r = await http.post("/api/vpns", json={**base, **bad})
+            assert r.status_code == 400 and r.json()["error"], (bad, r.text)
+        assert server.vault.get("vpn:" + vid)["totp_digits"] == 8, "a rejected save must change nothing"
+
+        r = await http.post("/api/vpns", json={**base, "totp_mode": "ask"})
+        assert r.json()["totp_mode"] == "ask"
+        kept = server.vault.get("vpn:" + vid)
+        assert not any(k.startswith("totp_") for k in kept) and "SUPER-SECRET" in kept["ovpn"], kept.keys()
+        assert (await http.post("/api/vpns", json={**base, "totp_mode": "stored"})).status_code == 400
+        assert [v["totp_mode"] for v in (await http.get("/api/vpns")).json() if v["id"] == vid] == ["ask"]
+        blob = store.CONFIG.read_bytes()
+        assert b"otpauth" not in blob and b"JBSWY" not in blob and b"GEZDG" not in blob
+        print("ok  authenticator key, link and account picker keep the key out of config and responses")
 
         assert (await http.get("/api/vpn/status")).json()["state"] == "disconnected"
         assert (await http.post(f"/api/vpn/{vid}/up")).status_code in (200, 400)

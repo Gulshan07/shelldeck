@@ -47,6 +47,11 @@ def code_for(secret: dict, when: float | None = None) -> str:
                 secret.get("totp_period", 30), secret.get("totp_algorithm", "SHA1"))
 
 
+def totp_mode_of(profile: dict, secret: dict) -> str:
+    """none | ask | stored. Profiles saved before the setting existed had a key or nothing."""
+    return profile.get("totp_mode") or ("stored" if secret.get("totp_secret") else "none")
+
+
 def _clean_key(text: str) -> str:
     """Base32 as authenticators show it -> upper case, no spaces, no padding."""
     key = re.sub(r"[\s=]+", "", text).upper()

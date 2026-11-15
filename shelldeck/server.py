@@ -19,7 +19,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from . import store
-from .vpn import Vpn, VpnError, detect_dialect
+from .vpn import Vpn, VpnError, code_for, detect_dialect, parse_totp_input, totp_mode_of
 from . import importers, macros as macro_mod, platform, session_log
 
 STATIC = Path(__file__).parent / "static"
@@ -467,29 +467,68 @@ async def log_delete(request):
 async def vpns(request):
     cfg = store.load_config()
     if request.method == "GET":
-        return JSONResponse(cfg.get("vpns", []))
+        return JSONResponse([{**v, "totp_mode": totp_mode_of(v, vault.get("vpn:" + v["id"]))}
+                             for v in cfg.get("vpns", [])])
 
     body = await request.json()
     ovpn = body.get("ovpn") or ""
+    vid = body.get("id") or uuid.uuid4().hex
+    old = vault.get("vpn:" + vid)
+    was = next((v for v in cfg.get("vpns", []) if v["id"] == vid), {})
+
+    # Work out the authenticator setting before anything is written, so a
+    # rejected save changes nothing.
+    mode = body.get("totp_mode") or totp_mode_of(was, old)
+    key = {k: v for k, v in old.items() if k.startswith("totp_")}
+    fresh = False
+    if body.get("totp_input"):
+        try:
+            accounts = parse_totp_input(body["totp_input"])
+            pick = body.get("totp_account")
+            if len(accounts) > 1 and pick in (None, ""):
+                # Labels only: the keys stay on this side.
+                return JSONResponse({"error": "choose an account", "accounts": [
+                    {"index": i, "label": a["label"], "issuer": a["issuer"]}
+                    for i, a in enumerate(accounts)]}, status_code=409)
+            pick = int(pick or 0)
+            if not 0 <= pick < len(accounts):
+                raise ValueError("no such account in that export")
+        except (ValueError, TypeError) as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        a = accounts[pick]
+        key = {"totp_secret": a["secret"]}
+        for name, default in (("digits", 6), ("period", 30), ("algorithm", "SHA1")):
+            if a[name] != default:
+                key["totp_" + name] = a[name]
+        mode, fresh = "stored", True
+    if mode not in ("none", "ask", "stored"):
+        return JSONResponse({"error": "totp_mode must be none, ask or stored"}, status_code=400)
+    if mode == "stored" and not key.get("totp_secret"):
+        return JSONResponse({"error": "no authenticator key given"}, status_code=400)
+    if mode != "stored":
+        key = {}                      # an unused key does not stay in the vault
     prof = {
-        "id": body.get("id") or uuid.uuid4().hex,
+        "id": vid,
         "name": body["name"],
         "username": body.get("username", ""),
         "dialect": body.get("dialect") or "auto",
+        "totp_mode": mode,
     }
     rest = [v for v in cfg.get("vpns", []) if v["id"] != prof["id"]]
     cfg["vpns"] = sorted(rest + [prof], key=lambda v: v["name"])
     store.save_config(cfg)
 
-    old = vault.get("vpn:" + prof["id"])
-    vault.put("vpn:" + prof["id"], {
+    secret = {
         # Keep the previously imported profile when the form leaves the box empty.
         "ovpn": ovpn or old.get("ovpn"),
         "password": body.get("password") or old.get("password"),
-        "totp_secret": (body.get("totp_secret") or old.get("totp_secret") or "").replace(" ", ""),
         "key_passphrase": body.get("key_passphrase") or old.get("key_passphrase"),
         "sudo_password": body.get("sudo_password") or old.get("sudo_password"),
-    })
+        **key,
+    }
+    vault.put("vpn:" + vid, secret)
+    if fresh:
+        prof["totp_now"] = code_for(secret)   # once, so it can be checked against the phone
     prof["detected"] = detect_dialect(ovpn or old.get("ovpn") or "")
     return JSONResponse(prof)
 
