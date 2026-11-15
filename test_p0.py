@@ -217,6 +217,28 @@ def test_macro_expect_regex():
     asyncio.run(go())
 
 
+def test_macro_status_hides_answers_to_password_prompts():
+    """The status line is printed in the terminal, so the reply to a password
+    prompt must not appear there (it ended up in a screenshot once)."""
+    import asyncio
+    from shelldeck.macros import run
+
+    async def go():
+        recent = bytearray(b"root@db:~# mysql -u dba -p\r\nEnter password: ")
+        steps = [("expect", "Enter password:"), ("send", "hunter2-secret\n"),
+                 ("send", "use app_db;\n")]
+        got = [s async for s in run(steps, lambda b: None, recent)]
+        assert not any("hunter2" in s for s in got), got
+        assert "sent: ••••••" in got, got
+        assert "sent: use app_db;" in got, got           # ordinary lines stay visible
+        # a prompt on screen counts even without an expect step
+        recent2 = bytearray(b"[sudo] password for ubuntu: ")
+        got2 = [s async for s in run([("send", "pw123\n")], lambda b: None, recent2)]
+        assert got2 == ["sent: ••••••"], got2
+
+    asyncio.run(go())
+
+
 def test_parse_forward():
     from shelldeck.server import parse_forward
 
