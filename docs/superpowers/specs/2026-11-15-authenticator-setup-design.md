@@ -1,6 +1,6 @@
 # Authenticator setup for VPN profiles — design
 
-Date: 2026-11-15. Status: awaiting approval.
+Date: 2026-11-15. Status: approved by Gulshan, 2026-11-15.
 
 ## Why
 
@@ -96,8 +96,10 @@ unchanged; it decides how a code is delivered, whichever way it was obtained.
   dialog, "Enter authenticator code for <name>", once per request.
 - The 90-second connect deadline does not run while waiting for the code.
   Cancelling the dialog disconnects.
-- A rejected code ends as `failed` with "authenticator code rejected"; the
-  user clicks connect again. No automatic retry loop.
+- A rejected login ends as `failed`; the user clicks connect again. No
+  automatic retry loop. The server does not always say whether the password
+  or the code was wrong, so the message names both: "authentication rejected
+  — check the password and the code you typed".
 - A re-authentication prompt on a live tunnel goes through the same path, so
   an `ask` profile can be re-authenticated without dropping. In that case the
   state **stays `connected`** (IP and uptime keep showing) and the status
@@ -148,10 +150,11 @@ a picker and resubmits with the index. Secrets never travel back.
 
 - After a save that stored a key, the response includes the **current code**
   once, and the form shows "Current code: 123 456 — it should match your
-  phone". A mismatch means the wrong account or a wrong clock. (My call: a
+  phone". A mismatch means the wrong account or a wrong clock. (Approved: a
   30-second code is not treated as a secret; the key still never leaves the
   server.)
-- When a server rejects a generated code, the failure detail adds "check this
+- When a server rejects a login that used a generated code, the failure
+  detail is "authentication rejected — if the password is right, check this
   computer's clock". No network check is made.
 
 ## Testing
