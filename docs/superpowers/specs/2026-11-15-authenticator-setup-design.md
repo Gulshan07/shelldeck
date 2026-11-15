@@ -77,6 +77,10 @@ Authenticator code
 already has a key shows "key stored" and leaves it untouched unless the user
 supplies a new one (same rule the form uses for the password today).
 
+Switching a profile from `stored` to `none` or `ask` **deletes the stored key**
+from the vault, after a confirmation that says it cannot be recovered from
+Shelldeck. (My call: an unused secret should not stay in the vault.)
+
 The existing "Second factor" dialect selector (auto / SCRV1 / appended) is
 unchanged; it decides how a code is delivered, whichever way it was obtained.
 
@@ -95,7 +99,19 @@ unchanged; it decides how a code is delivered, whichever way it was obtained.
 - A rejected code ends as `failed` with "authenticator code rejected"; the
   user clicks connect again. No automatic retry loop.
 - A re-authentication prompt on a live tunnel goes through the same path, so
-  an `ask` profile can be re-authenticated without dropping.
+  an `ask` profile can be re-authenticated without dropping. In that case the
+  state **stays `connected`** (IP and uptime keep showing) and the status
+  payload carries a separate `pending_code: true`; `needs_code` is used only
+  before the tunnel is first up. (My call.)
+- Waiting has a limit only on first connect: 5 minutes, then `failed` with
+  "no authenticator code entered". On a live tunnel Shelldeck keeps waiting;
+  if nobody answers, the server drops the tunnel and the normal exit handling
+  reports it. (My call.)
+- Dynamic-challenge (`CRV1`) servers: the user is asked at the first prompt
+  and again at the challenge, exactly as a stored key is used twice today. A
+  server that refuses a reused code needs the user to wait for the next code
+  before answering the second prompt; the dialog says so. No new dialect
+  option. (My call; known limitation.)
 
 ### B — paste a key or link
 
@@ -144,7 +160,9 @@ a picker and resubmits with the index. Secrets never travel back.
   digits/period/algorithm, a Google migration link with two accounts, HOTP
   rejection, garbage input; RFC 6238 SHA-256/512 vectors.
 - `test_vpn.py`: `ask` mode against `testbin/openvpn` — `needs_code`, correct
-  code connects, wrong code fails, deadline does not expire while waiting.
+  code connects, wrong code fails, deadline does not expire while waiting, and
+  a re-auth prompt on a live tunnel (new fake mode) sets `pending_code` while
+  staying `connected`.
 - `test_live.py`: key, pasted link and labels-only `409` never put a secret in
   `config.json` or a response body.
 - `test_ui.py`: the chooser, the code dialog, the account picker, and decoding
