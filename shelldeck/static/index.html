@@ -25,6 +25,8 @@
     <g id="i-help"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></g>
     <g id="i-chevron-right"><polyline points="9 18 15 12 9 6"/></g>
     <g id="i-chevron-down"><polyline points="6 9 12 15 18 9"/></g>
+    <g id="i-fold"><polyline points="7 20 12 15 17 20"/><polyline points="7 4 12 9 17 4"/></g>
+    <g id="i-unfold"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></g>
     <g id="i-grid"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></g>
     <g id="i-broadcast"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></g>
     <g id="i-x"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></g>
@@ -45,11 +47,12 @@
 
 <div id="gate" class="gate">
   <form id="unlock-form">
-    <h1>Shelldeck</h1>
+    <h1><svg class="ic brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-terminal"/></svg>Shelldeck</h1>
     <p id="gate-hint">Unlock your vault</p>
-    <input id="master" type="password" placeholder="Master password" autofocus>
+    <input id="master" type="password" placeholder="Master password" aria-label="Master password" autocomplete="current-password" autofocus>
+    <input id="master-confirm" type="password" placeholder="Repeat it" aria-label="Repeat the master password" autocomplete="new-password" hidden>
     <button>Unlock</button>
-    <div id="gate-error" class="error"></div>
+    <div id="gate-error" class="error" role="alert"></div>
   </form>
 </div>
 
@@ -71,15 +74,18 @@
               title="Macros"><svg class="ic" viewBox="0 0 24 24"><use href="#i-zap"/></svg></button>
       <button id="logs-btn" class="icon-btn" aria-label="Session logs"
               title="Session logs"><svg class="ic" viewBox="0 0 24 24"><use href="#i-file-text"/></svg></button>
-      <button id="prefs-btn" class="icon-btn" aria-label="Terminal appearance"
-              title="Terminal appearance"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sliders"/></svg></button>
+      <button id="prefs-btn" class="icon-btn" aria-label="Appearance and themes"
+              title="Appearance and themes"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sliders"/></svg></button>
       <button id="help-btn" class="icon-btn" aria-label="Help (F1)"
               title="Help (F1)"><svg class="ic" viewBox="0 0 24 24"><use href="#i-help"/></svg></button>
     </div>
-    <div class="search-wrap">
-      <svg class="ic search-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
-      <input id="filter" placeholder="Search name, host, user, group…"
-             aria-label="Search connections by name, host, IP, user or group (Alt+F)">
+    <div class="search-row">
+      <div class="search-wrap">
+        <svg class="ic search-ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="filter" placeholder="Search  (Alt+F)"
+               aria-label="Search connections by name, host, IP, user or group (Alt+F)">
+      </div>
+      <button id="fold-btn" class="icon-btn" aria-label="Collapse all groups" title="Collapse all groups"><svg class="ic" viewBox="0 0 24 24"><use href="#i-fold"/></svg></button>
     </div>
     <div id="tree"></div>
     <div id="vpn-box">
@@ -224,24 +230,17 @@
 
 <dialog id="prefs-dlg">
   <form method="dialog" id="prefs-form">
-    <h2>Terminal appearance</h2>
-    <label>Theme
-      <select name="theme">
-        <option value="shelldeck">Shelldeck (dark)</option>
-        <option value="black">Black</option>
-        <option value="solarized">Solarized Dark</option>
-        <option value="light">Light</option>
-      </select>
-    </label>
-    <label>Font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
-    <label>Font family
-      <select name="fontFamily">
-        <option value="ui-monospace, monospace">System monospace</option>
-        <option value="'Courier New', monospace">Courier</option>
-        <option value="monospace">Plain monospace</option>
-      </select>
-    </label>
-    <p class="note">Applies to open and new terminals. Saved in this browser.</p>
+    <h2>Appearance</h2>
+    <fieldset id="theme-picker"><legend>Theme</legend></fieldset>
+    <div class="prefs-row">
+      <label>Interface font <select name="ui_font"></select></label>
+      <label>Terminal font <select name="fontFamily"></select></label>
+    </div>
+    <div class="prefs-row">
+      <label>Terminal colours <select name="theme"></select></label>
+      <label>Terminal font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
+    </div>
+    <p class="note">Applies at once to open terminals. Saved in this browser. Fonts ship with Shelldeck.</p>
     <menu><button value="ok" autofocus>Done</button></menu>
   </form>
 </dialog>

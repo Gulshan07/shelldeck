@@ -25,7 +25,7 @@ async def fake_sshd():
                 line = await proc.stdin.readline()
             except asyncssh.TerminalSizeChanged:
                 continue          # a real PTY server keeps reading after SIGWINCH
-            if not line:
+            if not line or line.strip() == "exit":
                 break
             proc.stdout.write(f"you said: {line.strip()}\r\n")
         proc.exit(0)
@@ -113,6 +113,18 @@ async def main():
             if isinstance(c, bytes):
                 buf += c
         print("ok  still interactive after a valid resize")
+
+        # `exit` on the server must end the session here too, or the pane sits
+        # there looking connected while nothing it types goes anywhere
+        await ws.send(b"exit\n")
+        try:
+            while True:
+                await asyncio.wait_for(ws.recv(), timeout=5)
+        except websockets.exceptions.ConnectionClosed:
+            pass
+        except (asyncio.TimeoutError, TimeoutError):
+            raise AssertionError("the remote shell exited but the WebSocket stayed open")
+        print("ok  remote exit closes the WebSocket")
 
     # cross-origin must be refused even with a valid token
     try:

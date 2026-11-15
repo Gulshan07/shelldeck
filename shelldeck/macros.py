@@ -14,6 +14,10 @@ import re
 
 EXPECT_TIMEOUT = 30
 
+# The status line is shown in the terminal, so a reply to anything that looks
+# like a secret prompt is masked there. It is still typed into the shell as is.
+_SECRET_PROMPT = re.compile(rb"pass(word|phrase|code)?|secret|token|\bpin\b|otp", re.I)
+
 
 # A run of 2+ spaces right before a keyword means two steps got merged onto one
 # line (a common paste-from-terminal artifact); split them back apart.
@@ -58,10 +62,15 @@ async def run(steps, write, recent):
     the latest terminal output, so `expect` can watch it. Yields status strings
     for the UI. Raises TimeoutError on a missed expect.
     """
+    last_expect, before = "", None
     for op, arg in steps:
         if op == "send":
+            tail = bytes(recent[-200:])
+            fresh = tail if tail != before else b""     # only output since our last send
+            secret = _SECRET_PROMPT.search(last_expect.encode() + b" " + fresh)
             write(arg.encode())
-            yield f"sent: {arg.strip()[:40]}"
+            last_expect, before = "", tail
+            yield "sent: ••••••" if secret else f"sent: {arg.strip()[:40]}"
         elif op == "sleep":
             await asyncio.sleep(min(arg, 60))
         elif op == "expect":
@@ -78,4 +87,5 @@ async def run(steps, write, recent):
                 if asyncio.get_event_loop().time() > deadline:
                     raise TimeoutError(f"expected {arg!r} but it never appeared")
                 await asyncio.sleep(0.1)
+            last_expect = arg
             yield f"matched: {arg[:40]}"

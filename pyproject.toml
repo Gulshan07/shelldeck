@@ -27,4 +27,4 @@ build-backend = "setuptools.build_meta"
 include = ["shelldeck*"]
 
 [tool.setuptools.package-data]
-shelldeck = ["static/*", "static/vendor/*"]
+shelldeck = ["static/*", "static/vendor/*", "static/vendor/fonts/*"]

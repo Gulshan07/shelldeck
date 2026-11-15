@@ -120,9 +120,20 @@ async def main():
         await c.call("Page.navigate", url=f"http://127.0.0.1:{port}/#{server.TOKEN}")
         await asyncio.sleep(2)
 
+        # first run asks twice: a typo here would lock the vault for good
+        g = 'document.querySelector'
+        assert await c.js(g + '("#master-confirm").offsetParent !== null'), "first run has no confirm field"
+        assert await c.js(g + '("#unlock-form button").textContent') == "Create vault"
+        await c.js(g + f'("#master").value={MASTER!r};' + g + '("#master-confirm").value="typo";'
+                   + g + '("#unlock-form").requestSubmit()')
+        await asyncio.sleep(1)
+        assert "match" in await c.js(g + '("#gate-error").textContent')
+        assert not store.VAULT.exists(), "a mismatched confirm still created the vault"
+        print("ok  first run needs the master password twice")
+
         # the gate must actually disappear: author display:grid beats UA [hidden]
-        await c.js(f'document.querySelector("#master").value={MASTER!r};'
-                   'document.querySelector("#unlock-form").dispatchEvent(new Event("submit"))')
+        await c.js(g + f'("#master").value={MASTER!r};' + g + f'("#master-confirm").value={MASTER!r};'
+                   + g + '("#unlock-form").requestSubmit()')
         await asyncio.sleep(2)
         assert await c.js('document.querySelector("#gate").offsetParent === null'), \
             "the unlock gate is still visible after unlocking"
@@ -278,6 +289,38 @@ async def main():
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
 
+        # Esc on the host-key prompt is a rejection, sent once -- not a session left hanging
+        await c.js('''window._hk = []; const fake = {send: (m) => _hk.push(JSON.parse(m))};
+            askHostKey(fake, {name: "n", host: "h:22", algo: "ssh-ed25519", fingerprint: "SHA256:x"});
+            document.querySelector("#hostkey").dispatchEvent(new Event("cancel"));
+            document.querySelector("#hostkey").close();
+            askHostKey(fake, {name: "n", host: "h:22", algo: "ssh-ed25519", fingerprint: "SHA256:x"});
+            document.querySelector("#hk-accept").click()''')
+        await asyncio.sleep(0.3)
+        assert await c.js("JSON.stringify(_hk)") == '[{"accept":false},{"accept":true}]', \
+            await c.js("JSON.stringify(_hk)")
+        print("ok  Esc on the host-key prompt rejects; Trust sends one answer")
+
+        # a rejected save must hand the form back with what was typed
+        await c.js(g + '("#editor").returnValue = ""; openEditor(null);'
+                   + g + '("#conn-form").name.value = "keep-me";'
+                   + g + '("#conn-form").host.value = "10.9.9.9";'
+                   + g + '("#conn-form").forwards.value = "not a rule";'
+                   + g + '("#editor").close("save")')
+        await asyncio.sleep(1)
+        assert await c.js(g + '("#editor").open'), "a failed save closed the editor"
+        assert await c.js(g + '("#conn-form").name.value') == "keep-me", "a failed save lost the input"
+        await c.js(g + '("#editor").close("cancel")')
+        print("ok  a failed save reopens the editor with the input intact")
+
+        # "Show as text" must show the text, whichever view is up
+        await c.js('openLogView("missing.log")')
+        await asyncio.sleep(0.5)
+        await c.js(g + '("#log-toggle").click()')
+        assert await c.js(g + '("#log-view-text").offsetParent !== null'), "Show as text hid the text"
+        await c.js(g + '("#log-view").close()')
+        print("ok  Show as text keeps the text visible")
+
         # With no session open the pane area is a large void, so it has to say
         # what to do next -- and its buttons have to be wired, not decoration.
         assert await c.js('document.querySelector(".pane-empty") !== null'), \
@@ -288,10 +331,12 @@ async def main():
 
         # A group heading heads the rows beneath it, so it must not be smaller
         # than its own children -- it used to be 11px against their 13.5px.
-        size = json.loads(await c.js("""JSON.stringify({
-            group: parseFloat(getComputedStyle(document.querySelector('.group-name')).fontSize),
-            row: parseFloat(getComputedStyle(document.querySelector('.conn-name')).fontSize)})"""))
-        assert size["group"] > size["row"], f"group heading is not bigger than its rows: {size}"
+        # DESIGN.md has one body size, so it outranks them by weight.
+        size = json.loads(await c.js("""JSON.stringify(Object.fromEntries(['.group-name', '.conn-name']
+            .map(s => getComputedStyle(document.querySelector(s)))
+            .map((cs, i) => [i ? 'row' : 'group', [parseFloat(cs.fontSize), +cs.fontWeight]])))"""))
+        assert size["group"][0] >= size["row"][0] and size["group"][1] > size["row"][1], \
+            f"group heading does not outrank its rows: {size}"
         print(f"ok  empty state guides the user; group {size['group']}px > row {size['row']}px")
 
         # N instances: the picker must offer 2..7 and never more, and opening
@@ -385,6 +430,47 @@ async def main():
         assert await c.js('document.documentElement.getAttribute("data-theme")') == "dark"
         print("ok  chrome theme toggles light/dark and persists")
 
+        # Appearance offers whole themes: the chrome and the terminals change together
+        q = 'document.querySelector'
+        await c.js(q + '("#prefs-btn").click()')
+        names = json.loads(await c.js('JSON.stringify([...document.querySelectorAll('
+                                      '"#prefs-form [name=app_theme]")].map((r) => r.value))'))
+        assert len(names) >= 7 and {"dark", "light", "ember"} <= set(names), names
+        await c.js(q + '("#prefs-form [name=app_theme][value=ember]").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "ember"
+        assert await c.js('localStorage.getItem("chromeTheme")') == "ember"
+        bg = await c.js('getComputedStyle(document.documentElement).getPropertyValue("--term-bg").trim()')
+        assert await c.js("termOptions().theme.background") == bg, "terminal does not follow the app theme"
+        await c.js(q + '("#prefs-dlg").close()')
+        # the quick toggle goes to the light theme and back to the same dark one
+        await c.js(q + '("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "light"
+        await c.js(q + '("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "ember"
+        await c.js('applyChromeTheme("dark")')
+        print("ok  app themes switch chrome and terminals together; toggle remembers the dark one")
+
+        # many themes, sorted into dark and light; fonts ship with the app
+        await c.js(q + '("#prefs-btn").click()')
+        n_dark = await c.js('document.querySelectorAll("#theme-picker .dark-themes .theme-card").length')
+        n_light = await c.js('document.querySelectorAll("#theme-picker .light-themes .theme-card").length')
+        assert n_dark + n_light >= 18 and n_light >= 4, (n_dark, n_light)
+        ui_fonts = await c.js('document.querySelector("#prefs-form").ui_font.options.length')
+        mono_fonts = await c.js('document.querySelector("#prefs-form").fontFamily.options.length')
+        assert ui_fonts >= 4 and mono_fonts >= 7, (ui_fonts, mono_fonts)
+        await c.js('''(() => { const f = document.querySelector("#prefs-form");
+            f.ui_font.value = [...f.ui_font.options].find((o) => o.text === "IBM Plex Sans").value;
+            f.fontFamily.value = [...f.fontFamily.options].find((o) => o.text === "Fira Code").value;
+            f.dispatchEvent(new Event("input")); })()''')
+        await asyncio.sleep(1)
+        assert "IBM Plex Sans" in await c.js('getComputedStyle(document.body).fontFamily')
+        assert "Fira Code" in await c.js("termOptions().fontFamily")
+        assert await c.js('document.fonts.check("13px \\"Fira Code\\"")'), "Fira Code was not loaded from the app"
+        assert await c.js('document.fonts.check("13px \\"IBM Plex Sans\\"")'), "IBM Plex Sans was not loaded"
+        assert "IBM Plex Sans" in await c.js('localStorage.getItem("uiFont")')
+        await c.js(q + '("#prefs-dlg").close()')
+        print(f"ok  {n_dark + n_light} themes, {ui_fonts} interface and {mono_fonts} terminal fonts, served locally")
+
         # --- search matches more than the name --------------------------------
         await c.js("""conns = [
           {id:'s1', name:'app1', group:'PROD', host:'10.2.137.119', port:22, user:'ubuntu',
@@ -410,6 +496,19 @@ async def main():
         # put the real list back: later checks open a session from it
         await c.js("document.querySelector('#filter').value = ''")
         await c.js("(async () => { await loadTree(); return conns.length; })()")
+
+        # one button folds every group, and the same button opens them all again
+        q = 'document.querySelector'
+        n = await c.js('document.querySelectorAll("#tree .group").length')
+        assert n >= 2, f"need two groups to test folding, got {n}"
+        await c.js(q + '("#fold-btn").click()')
+        assert await c.js('document.querySelectorAll("#tree .group.collapsed").length') == n, \
+            "fold did not collapse every group"
+        assert "Expand" in await c.js(q + '("#fold-btn").getAttribute("aria-label")')
+        await c.js(q + '("#fold-btn").click()')
+        assert await c.js('document.querySelectorAll("#tree .group.collapsed").length') == 0
+        assert "Collapse" in await c.js(q + '("#fold-btn").getAttribute("aria-label")')
+        print("ok  one button collapses and expands every group")
 
         # A long listing must scroll inside its pane, not stretch the page. Every
         # ancestor needs min-height:0 or the grid item grows and nothing scrolls.

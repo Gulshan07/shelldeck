@@ -16,6 +16,23 @@ Notable changes per release. Dates are release dates.
   was generated.
 - TOTP keys using SHA-256/SHA-512, 8 digits or a non-30-second period work.
 
+**Interface**
+- New look: denser host list (one line per host), text tabs, thin pane headers,
+  amber broadcast indicator, flat dialogs. The pane receiving your typing is marked.
+- 18 themes, dark and light, picked from Appearance; terminals follow the theme.
+- Bundled interface and terminal fonts (Inter, IBM Plex, JetBrains Mono, Fira
+  Code, Cascadia Code and more); nothing is downloaded at runtime.
+- One button collapses or expands every group.
+- First run asks for the master password twice.
+
+**Fixes**
+- Typing `exit` (or a telnet device hanging up) now ends the session; the pane
+  used to stay "connected" while input went nowhere.
+- A macro's reply to a password prompt is no longer printed in the terminal.
+- Esc on the unknown-host-key prompt rejects instead of leaving the tab stuck.
+- A connection the server refuses to save reopens the editor with the input kept.
+- "Show as text" in the log viewer no longer hides the text.
+
 ## v0.1.0 — 2026-09-06
 
 First public release. Linux only; Windows and macOS are written but unverified,

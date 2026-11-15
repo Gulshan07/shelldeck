@@ -847,6 +847,8 @@ async def raw_session(ws, conn):
             recent.extend(data)
             del recent[:-16384]
             await ws.send_bytes(data)
+        with contextlib.suppress(Exception):
+            await ws.close()          # remote end hung up: same as the ssh pump
 
     async def run_macro(body):
         try:
@@ -935,6 +937,10 @@ async def ssh_ws(ws):
                 recent.extend(data)
                 del recent[:-16384]      # keep only the tail
                 await ws.send_bytes(data)
+            # The shell ended (`exit`, logout, server gone): end the session here
+            # too, or the pane keeps looking connected while its input goes nowhere.
+            with contextlib.suppress(Exception):
+                await ws.close()
 
         async def run_macro(body):
             try:

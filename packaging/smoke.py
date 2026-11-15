@@ -70,6 +70,8 @@ try:
         die(f"index returned {code}")
     if get("/static/vendor/xterm.js")[0] != 200:
         die("bundled xterm.js is missing from the build")
+    if get("/static/vendor/fonts/jetbrains-mono-400.woff2")[0] != 200:
+        die("bundled fonts are missing from the build")
     if get("/api/vault")[0] != 401:
         die("the API answered without a token")
     if get("/api/vault", {"Authorization": "Bearer " + token})[0] != 200:
