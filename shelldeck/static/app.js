@@ -687,6 +687,8 @@ function openVpnEditor(v) {
   f.totp_ui.value = { ask: "ask", stored: "paste" }[v && v.totp_mode] || "none";
   f.dataset.hadKey = v && v.totp_mode === "stored" ? "1" : "";
   $("#totp-input").value = "";
+  $("#totp-qr-file").value = "";
+  $("#totp-qr-status").textContent = "";
   $("#totp-accounts").innerHTML = "";
   $("#totp-accounts-label").hidden = true;
   $("#totp-now").textContent = "";
@@ -711,6 +713,55 @@ function showTotpFlow() {
 }
 $("#vpn-form").querySelectorAll("[name=totp_ui]").forEach((r) => r.onchange = showTotpFlow);
 
+// --- QR code image -------------------------------------------------------
+// Decoded here in the page: the image never leaves the browser, only the text
+// inside it goes to the server, down the same path as a pasted link.
+async function decodeQrImage(blob) {
+  const none = new Error("no QR code found in that image");
+  let bmp;
+  try { bmp = await createImageBitmap(blob); } catch (e) { throw none; }
+  // Big screenshots are scaled down; a second, smaller pass rescues dense codes
+  // that were photographed or zoomed.
+  const fit = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  for (const scale of [fit, fit / 2]) {
+    const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#fff";                 // transparent PNGs would decode as black
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    const found = jsQR(ctx.getImageData(0, 0, w, h).data, w, h);
+    if (found && found.data) return found.data;
+  }
+  throw none;
+}
+
+async function readQrInto(blob) {
+  $("#totp-input").value = "";
+  $("#totp-accounts-label").hidden = true;
+  try {
+    $("#totp-input").value = await decodeQrImage(blob);
+    $("#totp-qr-status").textContent = "QR code read. Save to store the key.";
+  } catch (err) { $("#totp-qr-status").textContent = err.message; }
+}
+$("#totp-qr-file").onchange = (e) => { if (e.target.files[0]) readQrInto(e.target.files[0]); };
+{
+  const zone = $("#totp-qr-zone");
+  zone.ondragover = (e) => { e.preventDefault(); zone.classList.add("over"); };
+  zone.ondragleave = () => zone.classList.remove("over");
+  zone.ondrop = (e) => {
+    e.preventDefault();
+    zone.classList.remove("over");
+    if (e.dataTransfer.files[0]) readQrInto(e.dataTransfer.files[0]);
+  };
+  $("#vpn-editor").addEventListener("paste", (e) => {
+    if ($("#vpn-form").totp_ui.value !== "qr") return;
+    const img = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith("image/"));
+    if (img) { e.preventDefault(); readQrInto(img); }
+  });
+}
+
 // Save without closing: the server may answer "which account?" or hand back
 // the current code to compare with the phone.
 async function saveVpn() {
@@ -722,6 +773,10 @@ async function saveVpn() {
   delete body.totp_ui;
   body.totp_mode = ui === "none" || ui === "ask" ? ui : "stored";
   if (body.totp_mode === "stored") {
+    if (ui === "qr" && !$("#totp-input").value && !f.dataset.hadKey) {
+      $("#totp-qr-status").textContent = "Choose an image of the QR code first.";
+      return;
+    }
     if ($("#totp-input").value.trim()) body.totp_input = $("#totp-input").value.trim();
     if (!$("#totp-accounts-label").hidden) body.totp_account = Number($("#totp-accounts").value);
   } else if (f.dataset.hadKey && !await confirmDlg("Delete the stored authenticator key?",
@@ -746,6 +801,7 @@ async function saveVpn() {
   f.id.value = saved.id;
   f.dataset.hadKey = "1";
   $("#totp-input").value = "";
+  $("#totp-qr-status").textContent = "";
   $("#totp-accounts-label").hidden = true;
   $("#totp-note").textContent = "Saved. If the code differs from your phone, it is the wrong account or this computer's clock is off.";
   const n = saved.totp_now, half = Math.ceil(n.length / 2);

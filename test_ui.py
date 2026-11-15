@@ -227,6 +227,37 @@ async def main():
         await asyncio.sleep(0.5)
         print("ok  needs_code opens the code box and submits the typed code")
 
+        # a screenshot of a QR code is decoded in the page, never uploaded
+        import base64 as _b64
+        png = _b64.b64encode(open("testdata/otpauth-qr.png", "rb").read()).decode()
+        blob = f'new Blob([Uint8Array.from(atob("{png}"), (ch) => ch.charCodeAt(0))], {{type:"image/png"}})'
+        URI = "otpauth://totp/Shelldeck:test?secret=JBSWY3DPEHPK3PXP&issuer=Shelldeck"
+        assert await c.js(f'decodeQrImage({blob})') == URI
+        err = await c.js('decodeQrImage(new Blob(["not an image"], {type:"text/plain"}))'
+                         '.then(() => "decoded", (e) => e.message)')
+        assert err == "no QR code found in that image", err
+        # choosing the file fills the hidden field and says so; saving then stores the key
+        await c.js('window._seen = []; window._f = window.fetch;'
+                   'window.fetch = (u, o) => { _seen.push(String(u)); return _f(u, o); };'
+                   'openVpnEditor(null);' + q + '("#vpn-form").name.value = "from-qr";'
+                   + q + '("#vpn-form [name=totp_ui][value=qr]").click();'
+                   f'readQrInto({blob})')
+        assert await c.js(q + '("#totp-input").value') == URI
+        assert "QR code read" in await c.js(q + '("#totp-qr-status").textContent')
+        assert not await c.js(vis % "#totp-input"), "the decoded link is shown on screen"
+        await c.js('readQrInto(new Blob(["x"], {type:"text/plain"}))')
+        assert await c.js(q + '("#totp-input").value') == ""
+        assert "no QR code found" in await c.js(q + '("#totp-qr-status").textContent')
+        await c.js(f'readQrInto({blob})')
+        await c.js('saveVpn()')
+        await asyncio.sleep(1)
+        assert re.search(r"\d{3} \d{3}", await c.js(q + '("#totp-now").textContent'))
+        assert await c.js('vpns.find((v) => v.name === "from-qr").totp_mode') == "stored"
+        sent = await c.js('window.fetch = window._f; _seen.join(" ")')
+        assert "/api/vpns" in sent and all("/api/vpn" in u for u in sent.split()), sent
+        await c.js(q + '("#vpn-editor").close("cancel")')
+        print("ok  QR screenshot decodes in the browser and stores the key; a non-image fails cleanly")
+
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
 

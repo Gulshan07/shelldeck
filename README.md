@@ -219,6 +219,8 @@ in [CHANGELOG.md](CHANGELOG.md).
   the benchmark for this kind of tool.
 - [xterm.js](https://xtermjs.org/) (MIT) — vendored in
   `shelldeck/static/vendor/`.
+- [jsQR](https://github.com/cozmo/jsQR) (Apache-2.0) — vendored alongside it,
+  unmodified; reads authenticator QR codes in the browser.
 - [AsyncSSH](https://asyncssh.readthedocs.io/) — the SSH implementation doing
   the real work.
 
