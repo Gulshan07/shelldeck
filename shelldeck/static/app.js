@@ -76,7 +76,10 @@ async function api(path, opts = {}) {
     ...opts,
     headers: { "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json", ...(opts.headers || {}) },
   });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw Object.assign(new Error(body.error || r.status), { status: r.status, body });
+  }
   return r.json();
 }
 
@@ -622,7 +625,8 @@ async function pollVpn() {
   renderVpn();
   // Poll quickly while something is happening, slowly when it is not.
   clearTimeout(vpnTimer);
-  const busy = vpnState.state === "connecting" || vpnState.state === "connected";
+  const busy = ["connecting", "connected", "needs_code"].includes(vpnState.state);
+  askVpnCode();
   if (!$("#app").hidden) vpnTimer = setTimeout(pollVpn, busy ? 1500 : 6000);
   if ($("#vpn-log").open) $("#vpn-log-text").textContent = (vpnState.log || []).join("\n");
 }
@@ -650,7 +654,7 @@ function renderVpn() {
     b.onclick = (e) => { e.stopPropagation(); fn(b.dataset.id); });
   on(".vpn-go", async (id) => {
     const active = vpnState.profile_id === id && vpnState.state !== "disconnected"
-      && vpnState.state !== "failed";
+      && vpnState.state !== "failed";   // needs_code counts: the button then disconnects
     try {
       await api(active ? "/api/vpn/down" : `/api/vpn/${id}/up`, { method: "POST" });
     } catch (err) { toast(err.message, "err"); }
@@ -679,8 +683,116 @@ function openVpnEditor(v) {
     ? "Leave the file empty to keep the profile already stored. Blank secrets are kept too."
     : "The whole profile, private key included, is stored encrypted in the vault and written to disk only while connected.";
   if (v) for (const [k, val] of Object.entries(v)) if (f[k]) f[k].value = val;
+  // A stored key is never sent to the page, so "stored" shows as an empty paste field.
+  f.totp_ui.value = { ask: "ask", stored: "paste" }[v && v.totp_mode] || "none";
+  f.dataset.hadKey = v && v.totp_mode === "stored" ? "1" : "";
+  $("#totp-input").value = "";
+  $("#totp-accounts").innerHTML = "";
+  $("#totp-accounts-label").hidden = true;
+  $("#totp-now").textContent = "";
+  $("#vpn-save").textContent = "Save";
+  showTotpFlow();
   $("#vpn-editor").showModal();
 }
+
+// One flow visible at a time: nothing, a paste field, or the QR drop zone.
+function showTotpFlow() {
+  const f = $("#vpn-form"), ui = f.totp_ui.value, had = f.dataset.hadKey;
+  $("#totp-input").hidden = ui !== "paste";
+  $("#totp-qr-zone").hidden = ui !== "qr";
+  $("#totp-note").textContent = {
+    none: had ? "The stored key will be deleted when you save." : "",
+    ask: "Works with any authenticator app. Shelldeck asks for the code when you connect."
+      + (had ? " The stored key will be deleted when you save." : ""),
+    paste: had ? "A key is stored. Leave this empty to keep it."
+      : "The setup key, an otpauth:// link, or Google Authenticator's export link.",
+    qr: had ? "A key is stored. Give a new image only to replace it." : "",
+  }[ui];
+}
+$("#vpn-form").querySelectorAll("[name=totp_ui]").forEach((r) => r.onchange = showTotpFlow);
+
+// Save without closing: the server may answer "which account?" or hand back
+// the current code to compare with the phone.
+async function saveVpn() {
+  const f = $("#vpn-form");
+  if ($("#vpn-save").textContent === "Done") { $("#vpn-editor").close("done"); return; }
+  if (!f.reportValidity()) return;
+  const ui = f.totp_ui.value;
+  const body = Object.fromEntries(new FormData(f));
+  delete body.totp_ui;
+  body.totp_mode = ui === "none" || ui === "ask" ? ui : "stored";
+  if (body.totp_mode === "stored") {
+    if ($("#totp-input").value.trim()) body.totp_input = $("#totp-input").value.trim();
+    if (!$("#totp-accounts-label").hidden) body.totp_account = Number($("#totp-accounts").value);
+  } else if (f.dataset.hadKey && !await confirmDlg("Delete the stored authenticator key?",
+      "The stored authenticator key will be deleted. Shelldeck cannot recover it. Continue?")) {
+    return;
+  }
+  let saved;
+  try {
+    saved = await api("/api/vpns", { method: "POST", body: JSON.stringify(body) });
+  } catch (err) {
+    if (err.status === 409 && err.body.accounts) {
+      $("#totp-accounts").innerHTML = err.body.accounts.map((a) => `<option value="${a.index}">${
+        esc([a.issuer, a.label].filter(Boolean).join(" — ") || "account " + (a.index + 1))}</option>`).join("");
+      $("#totp-accounts-label").hidden = false;
+      $("#totp-note").textContent = "That export holds several accounts. Pick the one for this VPN, then save.";
+    } else toast("Could not save: " + err.message, "err");
+    return;
+  }
+  loadVpns();
+  if (!saved.totp_now) { $("#vpn-editor").close("saved"); return; }
+  // The key is in the vault now; nothing that contains it stays in the page.
+  f.id.value = saved.id;
+  f.dataset.hadKey = "1";
+  $("#totp-input").value = "";
+  $("#totp-accounts-label").hidden = true;
+  $("#totp-note").textContent = "Saved. If the code differs from your phone, it is the wrong account or this computer's clock is off.";
+  const n = saved.totp_now, half = Math.ceil(n.length / 2);
+  $("#totp-now").innerHTML = `Current code: <b>${esc(n.slice(0, half))} ${esc(n.slice(half))}</b> — it should match your phone.`;
+  $("#vpn-save").textContent = "Done";
+}
+$("#vpn-save").onclick = (e) => { e.preventDefault(); saveVpn(); };
+
+// --- typed authenticator code (profiles that store no key) ---------------
+let codeDismissed = false;      // cancelled a re-auth prompt: do not nag until it clears
+
+function askVpnCode() {
+  const dlg = $("#vpn-code");
+  const wanted = vpnState.state === "needs_code" || vpnState.pending_code;
+  if (!wanted) { codeDismissed = false; if (dlg.open) dlg.close(); return; }
+  if (dlg.open || codeDismissed) return;
+  const live = vpnState.state === "connected";
+  $("#vpn-code-title").textContent = "Enter authenticator code for " + (vpnState.name || "the VPN");
+  $("#vpn-code-note").textContent = live
+    ? "The VPN server is asking for a new code. Your connection stays up."
+    : "If the server asks twice, wait for the next code before answering the second time.";
+  $("#vpn-code-error").textContent = "";
+  $("#vpn-code-input").value = "";
+  dlg.showModal();
+  $("#vpn-code-input").focus();
+}
+$("#vpn-code-form").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    vpnState = await api("/api/vpn/code", { method: "POST",
+      body: JSON.stringify({ code: $("#vpn-code-input").value }) });
+    $("#vpn-code").close();
+    pollVpn();
+  } catch (err) { $("#vpn-code-error").textContent = err.message; }
+};
+// Cancel and Esc mean the same thing: give up a first connect, or let a live
+// tunnel be until the server decides.
+$("#vpn-code-cancel").onclick = () => $("#vpn-code").close("cancel");
+$("#vpn-code").addEventListener("cancel", () => { $("#vpn-code").returnValue = "cancel"; });
+$("#vpn-code").onclose = async () => {
+  if ($("#vpn-code").returnValue !== "cancel") return;
+  $("#vpn-code").returnValue = "";
+  if (vpnState.state === "needs_code") {
+    try { await api("/api/vpn/down", { method: "POST" }); } catch (err) { toast(err.message, "err"); }
+    pollVpn();
+  } else codeDismissed = true;
+};
 
 $("#new-vpn-btn").onclick = () => openVpnEditor(null);
 $("#ovpnfile").onchange = async (e) => {
@@ -690,14 +802,6 @@ $("#ovpnfile").onchange = async (e) => {
   const sc = /^\s*static-challenge/m.test($("#vpn-form").ovpn.value);
   $("#ovpn-note").textContent = `Loaded ${file.name} — second factor: ${
     sc ? "static-challenge (SCRV1)" : "appended to the password"}.`;
-};
-$("#vpn-editor").onclose = async () => {
-  if ($("#vpn-editor").returnValue !== "save") return;
-  const body = Object.fromEntries(new FormData($("#vpn-form")));
-  try {
-    await api("/api/vpns", { method: "POST", body: JSON.stringify(body) });
-    loadVpns();
-  } catch (err) { toast("Could not save: " + err.message, "err"); }
 };
 $("#vpn-log-close").onclick = () => $("#vpn-log").close();
 
