@@ -199,12 +199,13 @@ function renderTree() {
       <div class="group-body">
       ${list.map((c) => `
         <div class="conn" draggable="true" data-id="${c.id}" role="button" tabindex="0"
-             aria-label="Open ${esc(c.name)}, ${esc(c.user)}@${esc(c.host)}">
+             aria-label="Open ${esc(c.name)}, ${esc(c.user)}@${esc(c.host)}${c.jump ? ", via " + esc(nameOf(c.jump)) : ""}"
+             title="${esc(c.user ? c.user + "@" : "")}${esc(c.host || c.serial_device || "")}${c.jump ? " via " + esc(nameOf(c.jump)) : ""}">
           ${icon(c.proto === "serial" ? "sliders" : c.proto === "telnet" ? "server" : "terminal", "conn-ic")}
           <span class="conn-name">${esc(c.name)}${
             c.autorun_macro ? icon("zap", "conn-badge") : ""}</span>
           <span class="conn-host">${esc(c.user ? c.user + "@" : "")}${esc(c.host || c.serial_device || "")}${
-            c.jump ? " &#8674; " + esc(nameOf(c.jump)) : ""}${
+            c.jump ? ' <span class="conn-via">&#8674;</span>' : ""}${
             c.forwards && c.forwards.length ? " &middot; " + c.forwards.length + "&#8644;" : ""}</span>
           <span class="conn-actions">
             <button class="sftp" data-id="${c.id}" aria-label="Browse files on ${esc(c.name)}"
@@ -224,6 +225,7 @@ function renderTree() {
     </div>`;
   }).join("");
 
+  syncFoldBtn();
   $("#tree").querySelectorAll(".group-name").forEach((h) => {
     const toggle = () => {
       const g = h.dataset.group;
@@ -231,6 +233,7 @@ function renderTree() {
       saveCollapsed();
       h.closest(".group").classList.toggle("collapsed");
       h.setAttribute("aria-expanded", String(!collapsed.has(g)));  // caret rotates via CSS
+      syncFoldBtn();
     };
     h.onclick = (e) => { if (!e.target.closest(".group-open")) toggle(); };
     h.onkeydown = (e) => {
@@ -325,6 +328,23 @@ const collapsed = new Set(load("collapsedGroups"));
 function load(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
 function saveCollapsed() { try { localStorage.setItem("collapsedGroups", JSON.stringify([...collapsed])); } catch {} }
 $("#filter").oninput = renderTree;
+
+// One button for the whole tree: folds every group if any is open, else opens all.
+const treeGroups = () => [...document.querySelectorAll("#tree .group")].map((g) => g.dataset.group);
+function syncFoldBtn() {
+  const open = treeGroups().some((g) => !collapsed.has(g));
+  const label = open ? "Collapse all groups" : "Expand all groups";
+  const b = $("#fold-btn");
+  b.setAttribute("aria-label", label); b.title = label;
+  b.querySelector("use").setAttribute("href", open ? "#i-fold" : "#i-unfold");
+}
+$("#fold-btn").onclick = () => {
+  const groups = treeGroups();
+  const open = groups.some((g) => !collapsed.has(g));
+  groups.forEach((g) => (open ? collapsed.add(g) : collapsed.delete(g)));
+  saveCollapsed();
+  renderTree();
+};
 
 // --- editor -------------------------------------------------------------
 
@@ -981,20 +1001,20 @@ function renderPaneEmpty(panes) {
 
 const THEMES = {
   // Shelldeck's two match the chrome (style.css --term-bg) so a pane has no frame.
-  shelldeck: { background: "#171513", foreground: "#e8e3da", cursor: "#f2efe9", cursorAccent: "#171513",
-    selectionBackground: "#4a433d",
-    black: "#2b2622", red: "#ec7a6f", green: "#9fcf8f", yellow: "#e5b567", blue: "#86a9e0",
-    magenta: "#c79ad6", cyan: "#7fc4c0", white: "#d9d2c5",
-    brightBlack: "#7d746a", brightRed: "#f59a90", brightGreen: "#b5dfa6", brightYellow: "#f0cb85",
-    brightBlue: "#a5c1ec", brightMagenta: "#d9b5e4", brightCyan: "#9fd8d4", brightWhite: "#f7f5f0" },
+  shelldeck: { background: "#111316", foreground: "#dfe3e8", cursor: "#6fc2c9", cursorAccent: "#111316",
+    selectionBackground: "#2c3a44",
+    black: "#1d2126", red: "#f07a72", green: "#7fcf9a", yellow: "#e3b66a", blue: "#7aa8e8",
+    magenta: "#c49ae6", cyan: "#6fc2c9", white: "#c9cfd6",
+    brightBlack: "#6b7480", brightRed: "#f79a93", brightGreen: "#9ddfb3", brightYellow: "#efca8a",
+    brightBlue: "#9cc0f0", brightMagenta: "#d6b6ef", brightCyan: "#93d6dc", brightWhite: "#f3f5f7" },
   black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
   solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
-  light: { background: "#fbfaf7", foreground: "#2b2622", cursor: "#2b2622", cursorAccent: "#fbfaf7",
-    selectionBackground: "#e2dcd0",
-    black: "#2b2622", red: "#b03a2e", green: "#2f6f2a", yellow: "#8a5a00", blue: "#2d5aa0",
-    magenta: "#8a3f9a", cyan: "#1f6f6b", white: "#8c8378",
-    brightBlack: "#6e665e", brightRed: "#c6463a", brightGreen: "#3a8234", brightYellow: "#a06a00",
-    brightBlue: "#3a6bb8", brightMagenta: "#9c4dad", brightCyan: "#25817c", brightWhite: "#2b2622" },
+  light: { background: "#fafbfc", foreground: "#15191e", cursor: "#19707a", cursorAccent: "#fafbfc",
+    selectionBackground: "#cfe3e6",
+    black: "#15191e", red: "#b42d2d", green: "#1d6e36", yellow: "#855800", blue: "#245ea8",
+    magenta: "#80379a", cyan: "#19707a", white: "#6b7480",
+    brightBlack: "#5a6370", brightRed: "#c73a3a", brightGreen: "#26803f", brightYellow: "#9a6700",
+    brightBlue: "#2f6dbb", brightMagenta: "#9145ab", brightCyan: "#1f8390", brightWhite: "#15191e" },
 };
 
 function loadPrefs() {

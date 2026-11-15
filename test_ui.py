@@ -456,6 +456,19 @@ async def main():
         await c.js("document.querySelector('#filter').value = ''")
         await c.js("(async () => { await loadTree(); return conns.length; })()")
 
+        # one button folds every group, and the same button opens them all again
+        q = 'document.querySelector'
+        n = await c.js('document.querySelectorAll("#tree .group").length')
+        assert n >= 2, f"need two groups to test folding, got {n}"
+        await c.js(q + '("#fold-btn").click()')
+        assert await c.js('document.querySelectorAll("#tree .group.collapsed").length') == n, \
+            "fold did not collapse every group"
+        assert "Expand" in await c.js(q + '("#fold-btn").getAttribute("aria-label")')
+        await c.js(q + '("#fold-btn").click()')
+        assert await c.js('document.querySelectorAll("#tree .group.collapsed").length') == 0
+        assert "Collapse" in await c.js(q + '("#fold-btn").getAttribute("aria-label")')
+        print("ok  one button collapses and expands every group")
+
         # A long listing must scroll inside its pane, not stretch the page. Every
         # ancestor needs min-height:0 or the grid item grows and nothing scrolls.
         server.vault.put("a", {"password": SSH_PW})
