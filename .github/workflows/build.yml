@@ -89,7 +89,7 @@ jobs:
           SUM=$(sha256sum dist/Shelldeck-x86_64.AppImage | cut -d' ' -f1)
           sed "s/__SHA256__/$SUM/" packaging/HOW-TO-RUN.txt.in > dist/HOW-TO-RUN.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Shelldeck-${{ matrix.label }}
           path: |
