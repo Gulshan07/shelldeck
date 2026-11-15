@@ -184,6 +184,12 @@ async def main():
         assert await c.js(q + '("#vpn-editor").open'), "a save that needs an account pick closed the form"
         assert await c.js(q + '("#totp-accounts").options.length') == 2
         assert "Vitraya" in await c.js(q + '("#totp-accounts").options[0].textContent')
+        # changing the pasted text makes the old account list meaningless
+        await c.js(q + '("#totp-input").value = "JBSWY3DPEHPK3PXP";'
+                   + q + '("#totp-input").dispatchEvent(new Event("input", {bubbles: true}))')
+        assert not await c.js(vis % "#totp-accounts"), "a stale account picker survived new input"
+        await c.js(q + f'("#totp-input").value = {MIGRATION!r}; saveVpn()')
+        await asyncio.sleep(1)
         await c.js(q + '("#totp-accounts").value = "0"; saveVpn()')
         await asyncio.sleep(1)
         shown = await c.js(q + '("#totp-now").textContent')
@@ -191,7 +197,18 @@ async def main():
         assert await c.js(q + '("#vpn-editor").open'), "the form closed before the code could be compared"
         assert "JBSWY" not in await c.js('document.documentElement.outerHTML'), "key rendered into the page"
         assert await c.js(q + '("#totp-input").value') == "", "the pasted link is still in the field"
-        await c.js(q + '("#vpn-editor").close("cancel")')
+        # an edit made after the code is shown must not be thrown away by "Done"
+        assert await c.js(q + '("#vpn-save").textContent') == "Done"
+        await c.js(q + '("#vpn-form").username.value = "late-edit";'
+                   + q + '("#vpn-form").username.dispatchEvent(new Event("input", {bubbles: true}))')
+        assert await c.js(q + '("#vpn-save").textContent') == "Save"
+        await c.js('saveVpn()')
+        await asyncio.sleep(1)
+        assert await c.js('vpns.find((v) => v.name === "picker").username') == "late-edit"
+        # cancelling leaves nothing key-bearing in the closed form
+        await c.js('openVpnEditor(null);' + q + '("#vpn-form [name=totp_ui][value=paste]").click();'
+                   + q + '("#totp-input").value = "JBSWY3DPEHPK3PXP";' + q + '("#vpn-editor").close("cancel")')
+        assert await c.js(q + '("#totp-input").value') == "", "a cancelled form kept the key in the page"
         print("ok  pasted export: account picker, then the current code, never the key")
 
         # a stored key shows as stored; dropping it asks first, then deletes it

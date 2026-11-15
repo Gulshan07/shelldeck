@@ -809,6 +809,12 @@ async function saveVpn() {
   $("#vpn-save").textContent = "Done";
 }
 $("#vpn-save").onclick = (e) => { e.preventDefault(); saveVpn(); };
+// New text makes an earlier "which account?" answer meaningless.
+$("#totp-input").addEventListener("input", () => { $("#totp-accounts-label").hidden = true; });
+// "Done" only means done while nothing has changed since the save.
+$("#vpn-form").addEventListener("input", () => { $("#vpn-save").textContent = "Save"; });
+// Whatever was pasted or decoded does not outlive the dialog.
+$("#vpn-editor").addEventListener("close", () => { $("#totp-input").value = ""; });
 
 // --- typed authenticator code (profiles that store no key) ---------------
 let codeDismissed = false;      // cancelled a re-auth prompt: do not nag until it clears

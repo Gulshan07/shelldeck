@@ -294,6 +294,8 @@ def test_parse_totp_input():
     for data in (urllib.parse.quote(b64, safe=""), b64, b64.replace("+", " ")):
         [x] = parse_totp_input("otpauth-migration://offline?data=" + data)
         assert x["secret"] == base64.b32encode(b"\x00\x00\xfb\xef\xbe").decode().rstrip("="), data
+    # padding lost in transit
+    assert parse_totp_input(MIGRATION.replace("%3D", "")) == accts
     for bad, msg in [("otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=1", "HOTP"),
                      ("hello world!", "not a TOTP key"),
                      ("otpauth://totp/x?issuer=nokey", "not a TOTP key"),

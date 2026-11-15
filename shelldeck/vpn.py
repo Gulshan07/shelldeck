@@ -113,7 +113,8 @@ def _parse_migration(data: str) -> list:
     """Google Authenticator's "Export accounts" payload."""
     try:
         # '+' is legal base64 but becomes a space in transit often enough to matter.
-        raw = base64.b64decode(urllib.parse.unquote(data).replace(" ", "+"), validate=True)
+        data = urllib.parse.unquote(data).replace(" ", "+").rstrip("=")
+        raw = base64.b64decode(data + "=" * (-len(data) % 4), validate=True)   # padding is often lost
         entries = [dict(_pb_fields(v)) for num, v in _pb_fields(raw) if num == 1]
     except Exception:
         raise ValueError(NOT_TOTP) from None
@@ -301,6 +302,14 @@ class Vpn:
 
     async def down(self):
         self._drop_code_wait()
+        await self._stop()
+        if self._task:
+            self._task.cancel()
+        self._cleanup()
+        self.state, self.detail, self.ip, self.since = "disconnected", "", "", None
+
+    async def _stop(self):
+        """Ask openvpn to exit, then make sure it has."""
         if self._writer:
             with contextlib.suppress(Exception):
                 self._writer.write(b"signal SIGTERM\n")
@@ -311,10 +320,6 @@ class Vpn:
                 # openvpn runs as root under sudo, so terminate() can be denied.
                 self._proc.terminate()
                 await asyncio.wait_for(self._proc.wait(), 5)
-        if self._task:
-            self._task.cancel()
-        self._cleanup()
-        self.state, self.detail, self.ip, self.since = "disconnected", "", "", None
 
     def _cleanup(self):
         for f in self._files:
@@ -350,7 +355,11 @@ class Vpn:
                     self.detail = ("openvpn needs root. Store a sudo password in the profile, "
                                    "or allow it in sudoers.")
         await proc.wait()
-        if self.state in ("connecting", "connected"):
+        if self.state == "needs_code":
+            # Died under the prompt: without this the page would keep asking for a
+            # code nothing is waiting for.
+            self.state, self.detail = "failed", f"openvpn exited ({proc.returncode}) while waiting for the code"
+        elif self.state in ("connecting", "connected"):
             self.state = "failed" if self.state == "connecting" else "disconnected"
             self.detail = self.detail or f"openvpn exited ({proc.returncode})"
             self.since = None
@@ -428,6 +437,9 @@ class Vpn:
             except asyncio.TimeoutError:
                 code = None
                 self.state, self.detail = "failed", "no authenticator code entered"
+                # Nobody is coming: do not leave root openvpn and the private key behind.
+                await self._stop()
+                self._cleanup()
             finally:
                 self.pending_code = False
             deadline += time.time() - began
@@ -484,6 +496,8 @@ class Vpn:
                         # Server wants a fresh code; the last one may simply have expired.
                         self.detail = "answering challenge with a fresh code"
                         await answer_auth(m.group(1))
+                        if self.state == "failed":
+                            return
                     else:
                         self.state, self.detail = "failed", self._rejected()
                         return

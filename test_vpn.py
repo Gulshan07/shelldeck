@@ -196,9 +196,24 @@ async def main():
     assert v.state == "needs_code", (v.state, v.detail)
     await until(lambda: v.state == "failed", timeout=5)
     assert v.detail == "no authenticator code entered", v.detail
+    # walking away from the prompt must not leave root openvpn or the private key behind
+    await until(lambda: v._proc.returncode is not None, timeout=8)
+    assert not (RUN_DIR / "p1.ovpn").exists() and not (RUN_DIR / "p1.mgmt").exists(), \
+        "an abandoned code prompt left the private key on disk"
+    assert v.state == "failed" and v.detail == "no authenticator code entered", (v.state, v.detail)
     await v.down()
     vpn_mod.CONNECT_TIMEOUT, vpn_mod.CODE_WAIT = 90, 300
     print("ok  ask mode: the connect deadline pauses, the code wait has its own limit")
+
+    v = await start("ok", OVPN_SC, nokey, ASK)
+    await until(lambda: v.state == "needs_code")
+    v._proc.kill()                                                  # openvpn dies under the prompt
+    await until(lambda: v.state == "failed")
+    assert v.status()["pending_code"] is False and "openvpn exited" in v.detail, v.detail
+    v = await start("ok", OVPN_SC, nokey, ASK)                     # and connect is not blocked
+    await until(lambda: v.state == "needs_code")
+    await v.down()
+    print("ok  ask mode: openvpn dying under the prompt is reported, not left asking")
 
     v = await start("reauth", OVPN_SC, nokey, ASK)
     await until(lambda: v.state == "needs_code")
