@@ -97,6 +97,7 @@ Dynamic-challenge case: server answers `>PASSWORD:Verification Failed: 'Auth' ['
 → we regenerate a fresh TOTP and resend as `CRV1::<state>::<totp>`. Handles the "code expired mid-handshake" case too.
 
 - Profile stores: .ovpn path, username, password, TOTP secret, and whether TOTP is appended to the password or answered as a challenge (both exist in the wild — configurable per profile).
+- Authenticator setup ✅ done (2026-11): per profile, the code is typed at connect time, or generated from a key given as a setup key, an `otpauth://` link, Google Authenticator's export link or a QR screenshot. Design: `docs/superpowers/specs/2026-11-15-authenticator-setup-design.md`.
 - Elevation: one `sudo`/UAC prompt at VPN start, or install a small privileged helper later.
 - Status pill in the UI: disconnected / connecting / connected + assigned IP + uptime.
 - Auto-connect VPN before any connection tagged as needing it; disconnect when the last one closes (optional).

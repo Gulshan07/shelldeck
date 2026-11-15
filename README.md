@@ -67,7 +67,8 @@ model below.
 **Networking**
 - **One-click OpenVPN** with password + TOTP answered for you; supports all
   three second-factor dialects (`static-challenge`/SCRV1, appended, and dynamic
-  `CRV1` challenge)
+  `CRV1` challenge). The authenticator code is typed at connect time or
+  generated from a key you paste, or from a screenshot of its QR code
 
 **Getting your servers in and out**
 - **Import** from `~/.ssh/config` or Ásbrú — grouped, with jump hosts linked
@@ -126,6 +127,28 @@ your vault. Press <kbd>F1</kbd> for the full manual.
 
 For the VPN feature you also need OpenVPN installed
 (`sudo apt install openvpn`); everything else works without it.
+
+### VPN authenticator codes
+
+Each VPN profile says how its authenticator code is supplied:
+
+| Choice | What happens |
+|---|---|
+| None | The password is sent as is. |
+| Ask me each time I connect | Shelldeck asks for the 6-digit code when the server wants it. Nothing is stored. |
+| Paste a key or link | Paste the setup key, an `otpauth://` link, or Google Authenticator's export link. The key is stored in the vault and the code is generated for you. |
+| Read a QR code image | Choose, drop or paste a screenshot of the QR code. It is decoded in your browser; the image goes nowhere. |
+
+- **Google Authenticator:** Menu → Transfer accounts → Export accounts, take a
+  screenshot of the QR code, and give it to Shelldeck under *Read a QR code
+  image*.
+- **Microsoft Authenticator:** It never reveals the key. Choose *Ask me each
+  time I connect*, or ask your VPN admin to re-issue the QR code and scan it
+  into Shelldeck as well as your phone.
+
+After a key is saved the current code is shown once. If it differs from your
+phone, you picked the wrong account or this computer's clock is off — which is
+also the usual reason a server rejects a generated code.
 
 ## Security model
 
