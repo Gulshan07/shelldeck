@@ -120,9 +120,20 @@ async def main():
         await c.call("Page.navigate", url=f"http://127.0.0.1:{port}/#{server.TOKEN}")
         await asyncio.sleep(2)
 
+        # first run asks twice: a typo here would lock the vault for good
+        g = 'document.querySelector'
+        assert await c.js(g + '("#master-confirm").offsetParent !== null'), "first run has no confirm field"
+        assert await c.js(g + '("#unlock-form button").textContent') == "Create vault"
+        await c.js(g + f'("#master").value={MASTER!r};' + g + '("#master-confirm").value="typo";'
+                   + g + '("#unlock-form").requestSubmit()')
+        await asyncio.sleep(1)
+        assert "match" in await c.js(g + '("#gate-error").textContent')
+        assert not store.VAULT.exists(), "a mismatched confirm still created the vault"
+        print("ok  first run needs the master password twice")
+
         # the gate must actually disappear: author display:grid beats UA [hidden]
-        await c.js(f'document.querySelector("#master").value={MASTER!r};'
-                   'document.querySelector("#unlock-form").dispatchEvent(new Event("submit"))')
+        await c.js(g + f'("#master").value={MASTER!r};' + g + f'("#master-confirm").value={MASTER!r};'
+                   + g + '("#unlock-form").requestSubmit()')
         await asyncio.sleep(2)
         assert await c.js('document.querySelector("#gate").offsetParent === null'), \
             "the unlock gate is still visible after unlocking"
@@ -277,6 +288,38 @@ async def main():
 
         assert await c.js('document.querySelectorAll("#help section").length') >= 6
         print("ok  F1 manual is populated")
+
+        # Esc on the host-key prompt is a rejection, sent once -- not a session left hanging
+        await c.js('''window._hk = []; const fake = {send: (m) => _hk.push(JSON.parse(m))};
+            askHostKey(fake, {name: "n", host: "h:22", algo: "ssh-ed25519", fingerprint: "SHA256:x"});
+            document.querySelector("#hostkey").dispatchEvent(new Event("cancel"));
+            document.querySelector("#hostkey").close();
+            askHostKey(fake, {name: "n", host: "h:22", algo: "ssh-ed25519", fingerprint: "SHA256:x"});
+            document.querySelector("#hk-accept").click()''')
+        await asyncio.sleep(0.3)
+        assert await c.js("JSON.stringify(_hk)") == '[{"accept":false},{"accept":true}]', \
+            await c.js("JSON.stringify(_hk)")
+        print("ok  Esc on the host-key prompt rejects; Trust sends one answer")
+
+        # a rejected save must hand the form back with what was typed
+        await c.js(g + '("#editor").returnValue = ""; openEditor(null);'
+                   + g + '("#conn-form").name.value = "keep-me";'
+                   + g + '("#conn-form").host.value = "10.9.9.9";'
+                   + g + '("#conn-form").forwards.value = "not a rule";'
+                   + g + '("#editor").close("save")')
+        await asyncio.sleep(1)
+        assert await c.js(g + '("#editor").open'), "a failed save closed the editor"
+        assert await c.js(g + '("#conn-form").name.value') == "keep-me", "a failed save lost the input"
+        await c.js(g + '("#editor").close("cancel")')
+        print("ok  a failed save reopens the editor with the input intact")
+
+        # "Show as text" must show the text, whichever view is up
+        await c.js('openLogView("missing.log")')
+        await asyncio.sleep(0.5)
+        await c.js(g + '("#log-toggle").click()')
+        assert await c.js(g + '("#log-view-text").offsetParent !== null'), "Show as text hid the text"
+        await c.js(g + '("#log-view").close()')
+        print("ok  Show as text keeps the text visible")
 
         # With no session open the pane area is a large void, so it has to say
         # what to do next -- and its buttons have to be wired, not decoration.

@@ -47,9 +47,10 @@
   <form id="unlock-form">
     <h1>Shelldeck</h1>
     <p id="gate-hint">Unlock your vault</p>
-    <input id="master" type="password" placeholder="Master password" autofocus>
+    <input id="master" type="password" placeholder="Master password" aria-label="Master password" autocomplete="current-password" autofocus>
+    <input id="master-confirm" type="password" placeholder="Repeat it" aria-label="Repeat the master password" autocomplete="new-password" hidden>
     <button>Unlock</button>
-    <div id="gate-error" class="error"></div>
+    <div id="gate-error" class="error" role="alert"></div>
   </form>
 </div>
 

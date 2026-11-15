@@ -88,6 +88,9 @@ async function api(path, opts = {}) {
 async function refreshGate() {
   const v = await api("/api/vault");
   $("#gate-hint").textContent = v.exists ? "Unlock your vault" : "Create a master password (8+ chars)";
+  // First run asks twice: there is no recovery, so a typo would lock the vault for good.
+  $("#master-confirm").hidden = v.exists;
+  $("#unlock-form button").textContent = v.exists ? "Unlock" : "Create vault";
   $("#gate").hidden = v.unlocked;
   $("#app").hidden = !v.unlocked;
   if (v.unlocked) { loadTree(); loadVpns(); render(); }
@@ -97,9 +100,13 @@ async function refreshGate() {
 $("#unlock-form").onsubmit = async (e) => {
   e.preventDefault();
   $("#gate-error").textContent = "";
+  if (!$("#master-confirm").hidden && $("#master-confirm").value !== $("#master").value) {
+    $("#gate-error").textContent = "The two passwords do not match.";
+    return;
+  }
   try {
     await api("/api/vault/unlock", { method: "POST", body: JSON.stringify({ password: $("#master").value }) });
-    $("#master").value = "";
+    $("#master").value = $("#master-confirm").value = "";
     await refreshGate();
   } catch (err) { $("#gate-error").textContent = err.message; }
 };
@@ -420,11 +427,10 @@ async function openLogView(file) {
   $("#log-view").showModal();
 }
 
+// Leaves playback (if any) and shows the text; pressing it on the text is a no-op.
 $("#log-toggle").onclick = () => {
-  const showingText = !$("#log-view-text").hidden;
   stopPlayback();
-  $("#log-view-text").hidden = showingText ? true : false;
-  $("#log-toggle").textContent = showingText ? "Show as text" : "Show as text";
+  $("#log-view-text").hidden = false;
 };
 
 $("#log-play").onclick = async () => {
@@ -606,7 +612,11 @@ $("#editor").onclose = async () => {
   try {
     await api("/api/connections", { method: "POST", body: JSON.stringify(body) });
     loadTree();
-  } catch (err) { toast("Could not save: " + err.message, "err"); }
+  } catch (err) {
+    // The dialog has already closed; hand the form back as it was, not empty.
+    $("#editor").showModal();
+    toast("Could not save: " + err.message, "err");
+  }
 };
 
 // --- vpn ----------------------------------------------------------------
@@ -1333,10 +1343,18 @@ function askSudoKey(ws, msg, pane) {
 function askHostKey(ws, msg) {
   $("#hk-host").textContent = `${msg.name} - ${msg.host}`;
   $("#hk-fp").textContent = `${msg.algo}\n${msg.fingerprint}`;
-  $("#hostkey").showModal();
-  const answer = (accept) => { $("#hostkey").close(); ws.send(JSON.stringify({ accept })); };
+  // Esc is a rejection. Answer at the moment of choice, not on "close": that event
+  // is queued, and a second prompt opened meanwhile would read this one's result.
+  const dlg = $("#hostkey");
+  let answered = false;
+  const answer = (accept) => {
+    if (!answered) { answered = true; ws.send(JSON.stringify({ accept })); }
+    dlg.close();
+  };
   $("#hk-accept").onclick = () => answer(true);
   $("#hk-reject").onclick = () => answer(false);
+  dlg.oncancel = () => answer(false);
+  dlg.showModal();
 }
 
 $("#help-btn").onclick = () => $("#help").showModal();
