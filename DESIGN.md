@@ -37,6 +37,24 @@ than to a SaaS dashboard.
 | `--signal` | `#6fc2c9` | `#19707a` | focus, active tab, focused pane |
 | `--ok` / `--warn` / `--danger` | green / amber / red | darker equivalents | state only |
 
+The table is Graphite (dark) and Paper (light). Seven themes ship, each a
+short block in `style.css` that sets only the base colours above; fields,
+weak tints, focus ring and terminal background are derived from them.
+
+| Theme | Tone | Signal |
+|---|---|---|
+| Graphite (`dark`, default) | cool charcoal | teal |
+| Midnight | deep navy | periwinkle |
+| Ember | warm charcoal | coral |
+| Moss | green-grey | mint |
+| Void | true black, high contrast | cyan |
+| Paper (`light`) | cool light | dark teal |
+| Sand | warm light | sienna |
+
+Each theme has a matching terminal palette in `app.js` (`TERM_THEMES`), with
+the same background as the chrome. The sun/moon button swaps between the last
+dark and the last light theme used.
+
 Every text colour is at least 4.5:1 against every surface it sits on, in
 both themes. Check new pairs before adding them.
 

@@ -53,23 +53,31 @@ function pick(title, note, items) {
 }
 
 // --- chrome theme -------------------------------------------------------
+// Ids match [data-theme] blocks in style.css and keys in TERM_THEMES; "dark" and
+// "light" keep their old ids so a saved choice survives the upgrade.
+const APP_THEMES = [
+  { id: "dark", name: "Graphite" }, { id: "midnight", name: "Midnight" },
+  { id: "ember", name: "Ember" }, { id: "moss", name: "Moss" }, { id: "void", name: "Void" },
+  { id: "light", name: "Paper", light: true }, { id: "sand", name: "Sand", light: true },
+];
+const isLight = (t) => !!APP_THEMES.find((x) => x.id === t)?.light;
+const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const stored = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+
 function applyChromeTheme(t) {
+  if (!APP_THEMES.some((x) => x.id === t)) t = "dark";
   document.documentElement.setAttribute("data-theme", t);
-  $("#theme-btn").innerHTML = icon(t === "light" ? "moon" : "sun");
-  try { localStorage.setItem("chromeTheme", t); } catch {}
+  $("#theme-btn").innerHTML = icon(isLight(t) ? "moon" : "sun");
+  store("chromeTheme", t);
+  store(isLight(t) ? "lightTheme" : "darkTheme", t);   // the toggle goes back to these
 }
+// The sun/moon button swaps between the last dark and the last light theme used.
 $("#theme-btn").onclick = () => {
-  const t = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
-  applyChromeTheme(t);
-  // Keep terminals readable next to the new chrome. Only on an explicit toggle,
-  // so a terminal theme picked in prefs survives a reload; prefs still overrides.
-  termPrefs.theme = t === "light" ? "light" : "shelldeck";
-  try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
+  const cur = document.documentElement.getAttribute("data-theme");
+  applyChromeTheme(isLight(cur) ? stored("darkTheme") || "dark" : stored("lightTheme") || "light");
   applyPrefs();
 };
-applyChromeTheme((() => {
-  try { return localStorage.getItem("chromeTheme") || "dark"; } catch { return "dark"; }
-})());
+applyChromeTheme(stored("chromeTheme") || "dark");
 
 async function api(path, opts = {}) {
   const r = await fetch(path, {
@@ -999,35 +1007,52 @@ function renderPaneEmpty(panes) {
 
 // --- terminal appearance ------------------------------------------------
 
-const THEMES = {
-  // Shelldeck's two match the chrome (style.css --term-bg) so a pane has no frame.
-  shelldeck: { background: "#111316", foreground: "#dfe3e8", cursor: "#6fc2c9", cursorAccent: "#111316",
-    selectionBackground: "#2c3a44",
-    black: "#1d2126", red: "#f07a72", green: "#7fcf9a", yellow: "#e3b66a", blue: "#7aa8e8",
-    magenta: "#c49ae6", cyan: "#6fc2c9", white: "#c9cfd6",
-    brightBlack: "#6b7480", brightRed: "#f79a93", brightGreen: "#9ddfb3", brightYellow: "#efca8a",
-    brightBlue: "#9cc0f0", brightMagenta: "#d6b6ef", brightCyan: "#93d6dc", brightWhite: "#f3f5f7" },
+// Terminal colours per app theme: same background as the chrome (style.css
+// --term-bg) so a pane has no frame. ANSI order: black red green yellow blue
+// magenta cyan white, then the bright eight.
+function term(bg, fg, cursor, sel, ansi) {
+  const n = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+  const t = { background: bg, foreground: fg, cursor, cursorAccent: bg, selectionBackground: sel };
+  ansi.split(" ").forEach((c, i) => { t[i < 8 ? n[i] : "bright" + n[i - 8][0].toUpperCase() + n[i - 8].slice(1)] = c; });
+  return t;
+}
+const TERM_THEMES = {
+  dark: term("#111316", "#dfe3e8", "#6fc2c9", "#2c3a44",
+    "#1d2126 #f07a72 #7fcf9a #e3b66a #7aa8e8 #c49ae6 #6fc2c9 #c9cfd6 #6b7480 #f79a93 #9ddfb3 #efca8a #9cc0f0 #d6b6ef #93d6dc #f3f5f7"),
+  midnight: term("#0e1220", "#dde3f2", "#8fa8ff", "#2a3560",
+    "#1a2036 #f27b84 #7fd0a0 #e7bb6e #8fa8ff #c9a0f0 #79c9e0 #c3cbe0 #66729a #f79aa1 #a0e0bb #f0cd8e #b0c2ff #dbbdf5 #9cdcec #f2f4fb"),
+  ember: term("#171513", "#e8e3da", "#e8916b", "#4a433d",
+    "#2b2622 #ec7a6f #9fcf8f #e5b567 #86a9e0 #c79ad6 #7fc4c0 #d9d2c5 #7d746a #f59a90 #b5dfa6 #f0cb85 #a5c1ec #d9b5e4 #9fd8d4 #f7f5f0"),
+  moss: term("#101512", "#dfe8e2", "#8fd3c1", "#2a3a31",
+    "#1c241f #ee7d72 #9bd67f #e3b86a #85aedb #c59bd8 #8fd3c1 #c3cfc7 #66786c #f59c93 #b6e3a0 #eecb8c #a6c6e8 #d7b8e5 #abe0d3 #f2f6f3"),
+  void: term("#000000", "#f0f0f0", "#00d0ff", "#263040",
+    "#1a1a1a #ff6b6b #4ee08a #ffc94d #5ca8ff #d58cff #00d0ff #d0d0d0 #707070 #ff8f8f #7ff0ad #ffd97d #8cc2ff #e3b0ff #66e3ff #ffffff"),
+  light: term("#fafbfc", "#15191e", "#19707a", "#cfe3e6",
+    "#15191e #b42d2d #1d6e36 #855800 #245ea8 #80379a #19707a #6b7480 #5a6370 #c73a3a #26803f #9a6700 #2f6dbb #9145ab #1f8390 #15191e"),
+  sand: term("#fbf8f1", "#2a2620", "#9a4f2a", "#e8dcc4",
+    "#2a2620 #b03a2e #2f6f2a #855800 #2d5aa0 #8a3f9a #1f6f6b #8c8378 #6c6352 #c6463a #3a8234 #9a6700 #3a6bb8 #9c4dad #25817c #2a2620"),
   black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
   solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
-  light: { background: "#fafbfc", foreground: "#15191e", cursor: "#19707a", cursorAccent: "#fafbfc",
-    selectionBackground: "#cfe3e6",
-    black: "#15191e", red: "#b42d2d", green: "#1d6e36", yellow: "#855800", blue: "#245ea8",
-    magenta: "#80379a", cyan: "#19707a", white: "#6b7480",
-    brightBlack: "#5a6370", brightRed: "#c73a3a", brightGreen: "#26803f", brightYellow: "#9a6700",
-    brightBlue: "#2f6dbb", brightMagenta: "#9145ab", brightCyan: "#1f8390", brightWhite: "#15191e" },
 };
+// "auto" (the default) follows the app theme; old saved values did the same.
+function termTheme() {
+  const t = termPrefs.theme;
+  if (t === "black" || t === "solarized") return TERM_THEMES[t];
+  return TERM_THEMES[document.documentElement.getAttribute("data-theme")] || TERM_THEMES.dark;
+}
 
 function loadPrefs() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem("termPrefs")) || {}; } catch {}
-  return { theme: p.theme || "shelldeck", fontSize: p.fontSize || 13,
+  const theme = p.theme === "black" || p.theme === "solarized" ? p.theme : "auto";
+  return { theme, fontSize: p.fontSize || 13,
            fontFamily: p.fontFamily || '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", monospace' };
 }
 let termPrefs = loadPrefs();
 
 function termOptions() {
   return { fontSize: +termPrefs.fontSize, fontFamily: termPrefs.fontFamily,
-           cursorBlink: true, theme: THEMES[termPrefs.theme] || THEMES.shelldeck };
+           cursorBlink: true, theme: termTheme() };
 }
 
 const liveTerms = new Set();
@@ -1036,7 +1061,7 @@ function applyPrefs() {
   for (const t of liveTerms) {
     t.options.fontSize = +termPrefs.fontSize;
     t.options.fontFamily = termPrefs.fontFamily;
-    t.options.theme = THEMES[termPrefs.theme] || THEMES.shelldeck;
+    t.options.theme = termTheme();
   }
   activeTab?.panes.forEach((p) => p.resize?.());
 }
@@ -1103,14 +1128,21 @@ async function runMacroOn(pane) {
     p.ws.send(JSON.stringify({ type: "macro", body: m.body }));
 }
 
+$("#theme-picker").insertAdjacentHTML("beforeend", APP_THEMES.map((t) => `
+  <label class="theme-card" data-theme="${t.id}">
+    <input type="radio" name="app_theme" value="${t.id}">
+    <span class="sw" aria-hidden="true"><i></i><i></i></span><span>${t.name}</span>
+  </label>`).join(""));
 $("#prefs-btn").onclick = () => {
   const f = $("#prefs-form");
+  f.app_theme.value = document.documentElement.getAttribute("data-theme");
   f.theme.value = termPrefs.theme; f.fontSize.value = termPrefs.fontSize;
   f.fontFamily.value = termPrefs.fontFamily;
   $("#prefs-dlg").showModal();
 };
 $("#prefs-form").oninput = () => {
   const f = $("#prefs-form");
+  if (f.app_theme.value) applyChromeTheme(f.app_theme.value);
   termPrefs = { theme: f.theme.value, fontSize: f.fontSize.value, fontFamily: f.fontFamily.value };
   try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
   applyPrefs();

@@ -430,6 +430,26 @@ async def main():
         assert await c.js('document.documentElement.getAttribute("data-theme")') == "dark"
         print("ok  chrome theme toggles light/dark and persists")
 
+        # Appearance offers whole themes: the chrome and the terminals change together
+        q = 'document.querySelector'
+        await c.js(q + '("#prefs-btn").click()')
+        names = json.loads(await c.js('JSON.stringify([...document.querySelectorAll('
+                                      '"#prefs-form [name=app_theme]")].map((r) => r.value))'))
+        assert len(names) >= 7 and {"dark", "light", "ember"} <= set(names), names
+        await c.js(q + '("#prefs-form [name=app_theme][value=ember]").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "ember"
+        assert await c.js('localStorage.getItem("chromeTheme")') == "ember"
+        bg = await c.js('getComputedStyle(document.documentElement).getPropertyValue("--term-bg").trim()')
+        assert await c.js("termOptions().theme.background") == bg, "terminal does not follow the app theme"
+        await c.js(q + '("#prefs-dlg").close()')
+        # the quick toggle goes to the light theme and back to the same dark one
+        await c.js(q + '("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "light"
+        await c.js(q + '("#theme-btn").click()')
+        assert await c.js('document.documentElement.getAttribute("data-theme")') == "ember"
+        await c.js('applyChromeTheme("dark")')
+        print("ok  app themes switch chrome and terminals together; toggle remembers the dark one")
+
         # --- search matches more than the name --------------------------------
         await c.js("""conns = [
           {id:'s1', name:'app1', group:'PROD', host:'10.2.137.119', port:22, user:'ubuntu',

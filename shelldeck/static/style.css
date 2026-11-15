@@ -2,41 +2,78 @@
    Tokens first, then layout, then components. Class names are load-bearing:
    app.js and test_ui.py select on them, so they are preserved verbatim. */
 
-/* Cool charcoal, off-white ink, one teal signal, hairlines instead of shadows
-   (see DESIGN.md). Colour means state -- ok / warn / danger -- never decoration. */
+/* Themes (see DESIGN.md). Each theme sets only its base colours; everything
+   else is derived here, so a new theme is one short block. Colour means state
+   -- ok / warn / danger -- never decoration; --signal marks where you are.
+   The rule matches any [data-theme], so a theme preview card can wear a theme
+   that is not the page's. */
+:root, [data-theme] {
+  --field:var(--bg); --term-bg:var(--bg);
+  --accent:var(--fg); --accent-fg:var(--bg); --danger-fg:var(--bg);
+  --accent-weak:color-mix(in srgb, var(--fg) 6%, transparent);
+  --warn-weak:color-mix(in srgb, var(--warn) 13%, var(--bg));
+  --danger-weak:color-mix(in srgb, var(--danger) 14%, var(--bg));
+  --focus:0 0 0 1px var(--bg), 0 0 0 3px var(--signal);
+  --shadow:0 12px 32px rgba(0,0,0,.55);
+  --t-xs:11px; --t-sm:12px; --t-md:13px; --t-lg:15px; --t-xl:20px;
+  --w-body:400; --w-name:500;
+  color-scheme: dark;
+}
 :root {
-  --bg:#111316; --panel:#15181c; --raised:#1d2126; --line:#2a2f36; --ctl:#5f6873;
-  --field:#111316;
-  --fg:#e7eaee; --fg-2:#b4bcc7; --fg-3:#8a93a0;
-  --accent:#e7eaee; --accent-weak:rgba(231,234,238,.06); --accent-fg:#111316;
-  --signal:#6fc2c9;
-  --danger:#f07a72; --danger-weak:#331c1c; --danger-fg:#111316;
-  --ok:#7fcf9a; --warn:#e3b66a; --warn-weak:#2a2418;
-  --term-bg:#111316;
   --r:6px; --r-sm:4px;
   --sans:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
   --mono:"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", "Noto Sans Mono", monospace;
-  --t-xs:11px; --t-sm:12px; --t-md:13px; --t-lg:15px; --t-xl:20px;
-  --w-body:400; --w-name:500;
-  --shadow:0 12px 32px rgba(0,0,0,.55);
-  --focus:0 0 0 1px var(--bg), 0 0 0 3px var(--signal);
   --ease:cubic-bezier(.2,.7,.3,1);
-  color-scheme: dark;
 }
-/* Dark text on a light ground reads thinner and smaller, so the light theme is
-   one step up in size and weight -- not just the same layout inverted. */
+/* Graphite: cool charcoal, teal signal (the default) */
+:root, [data-theme="dark"] {
+  --bg:#111316; --panel:#15181c; --raised:#1d2126; --line:#2a2f36; --ctl:#5f6873;
+  --fg:#e7eaee; --fg-2:#b4bcc7; --fg-3:#8a93a0; --signal:#6fc2c9;
+  --ok:#7fcf9a; --warn:#e3b66a; --danger:#f07a72;
+}
+/* Midnight: deep navy, periwinkle signal */
+[data-theme="midnight"] {
+  --bg:#0e1220; --panel:#121729; --raised:#1a2036; --line:#263052; --ctl:#5b6a94;
+  --fg:#e4e8f4; --fg-2:#aeb7d0; --fg-3:#8590b0; --signal:#8fa8ff;
+  --ok:#7fd0a0; --warn:#e7bb6e; --danger:#f27b84;
+}
+/* Ember: warm charcoal, coral signal */
+[data-theme="ember"] {
+  --bg:#171513; --panel:#1e1b19; --raised:#282421; --line:#3d3733; --ctl:#746b62;
+  --fg:#f2efe9; --fg-2:#c9c0ad; --fg-3:#968d82; --signal:#e8916b;
+  --ok:#8cc77f; --warn:#e5b567; --danger:#ec7a6f;
+}
+/* Moss: green-grey, mint signal */
+[data-theme="moss"] {
+  --bg:#101512; --panel:#141a16; --raised:#1c241f; --line:#2a352e; --ctl:#5f7266;
+  --fg:#e5ece7; --fg-2:#b0c0b5; --fg-3:#879a8d; --signal:#8fd3c1;
+  --ok:#9bd67f; --warn:#e3b86a; --danger:#ee7d72;
+}
+/* Void: true black for OLED and high contrast, cyan signal */
+[data-theme="void"] {
+  --bg:#000000; --panel:#0a0a0a; --raised:#161616; --line:#2a2a2a; --ctl:#6a6a6a;
+  --fg:#ffffff; --fg-2:#cfcfcf; --fg-3:#9e9e9e; --signal:#00d0ff;
+  --ok:#4ee08a; --warn:#ffc94d; --danger:#ff6b6b;
+}
+/* Paper: cool light */
 [data-theme="light"] {
   --bg:#eef1f4; --panel:#fafbfc; --raised:#e3e7ec; --line:#d6dce3; --ctl:#858f9b;
-  --field:#ffffff;
-  --fg:#15191e; --fg-2:#3f4752; --fg-3:#5a6370;
-  --accent:#15191e; --accent-weak:rgba(21,25,30,.05); --accent-fg:#fafbfc;
-  --signal:#19707a;
-  --danger:#b42d2d; --danger-weak:#f7e2e0; --danger-fg:#fafbfc;
-  --ok:#1d6e36; --warn:#855800; --warn-weak:#f5ecd9;
-  --term-bg:#fafbfc;
+  --fg:#15191e; --fg-2:#3f4752; --fg-3:#5a6370; --signal:#19707a;
+  --ok:#1d6e36; --warn:#855800; --danger:#b42d2d;
+}
+/* Sand: warm light, sienna signal */
+[data-theme="sand"] {
+  --bg:#f4efe3; --panel:#fbf8f1; --raised:#ebe4d4; --line:#ddd4c0; --ctl:#8f8572;
+  --fg:#2a2620; --fg-2:#544c40; --fg-3:#6c6352; --signal:#9a4f2a;
+  --ok:#2f6f2a; --warn:#855800; --danger:#b03a2e;
+}
+/* Light themes: dark text on a light ground reads thinner and smaller, so they
+   are one step up in size and weight -- not just the dark layout inverted. */
+[data-theme="light"], [data-theme="sand"] {
+  --field:#ffffff; --term-bg:var(--panel); --accent-fg:var(--panel);
+  --shadow:0 12px 32px rgba(20,24,30,.14);
   --t-xs:12px; --t-sm:13px; --t-md:14px; --t-lg:16px; --t-xl:22px;
   --w-body:450; --w-name:600;
-  --shadow:0 12px 32px rgba(21,25,30,.14);
   color-scheme: light;
 }
 
@@ -443,3 +480,20 @@ details label { margin-top:9px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation:none !important; transition:none !important; }
 }
+
+/* --- theme picker -------------------------------------------------------- */
+#theme-picker { border:none; padding:0; margin:0; display:grid; gap:6px;
+  grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
+#theme-picker legend { font-size:var(--t-sm); color:var(--fg-2); padding:0; margin-bottom:6px; }
+/* Each card wears its own theme, so it previews it whatever the page uses. */
+.theme-card { display:grid; gap:6px; padding:8px; cursor:pointer; color:var(--fg);
+  background:var(--bg); border:1px solid var(--line); border-radius:var(--r);
+  font-size:12px; font-weight:500; transition:border-color .12s var(--ease); }
+.theme-card:hover { border-color:var(--ctl); }
+.theme-card:has(input:checked) { border-color:var(--signal); box-shadow:inset 0 0 0 1px var(--signal); }
+.theme-card:has(input:focus-visible) { box-shadow:var(--focus); }
+.theme-card input { position:absolute; opacity:0; pointer-events:none; }
+.theme-card .sw { display:grid; grid-template-columns:2fr 1fr; gap:3px; height:30px; }
+.theme-card .sw i { border-radius:2px; background:var(--panel); border:1px solid var(--line); }
+.theme-card .sw i:last-child { background:var(--signal); border-color:var(--signal); }
+#prefs-dlg { width:min(520px, 94vw); }
