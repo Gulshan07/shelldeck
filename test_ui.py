@@ -331,10 +331,12 @@ async def main():
 
         # A group heading heads the rows beneath it, so it must not be smaller
         # than its own children -- it used to be 11px against their 13.5px.
-        size = json.loads(await c.js("""JSON.stringify({
-            group: parseFloat(getComputedStyle(document.querySelector('.group-name')).fontSize),
-            row: parseFloat(getComputedStyle(document.querySelector('.conn-name')).fontSize)})"""))
-        assert size["group"] > size["row"], f"group heading is not bigger than its rows: {size}"
+        # DESIGN.md has one body size, so it outranks them by weight.
+        size = json.loads(await c.js("""JSON.stringify(Object.fromEntries(['.group-name', '.conn-name']
+            .map(s => getComputedStyle(document.querySelector(s)))
+            .map((cs, i) => [i ? 'row' : 'group', [parseFloat(cs.fontSize), +cs.fontWeight]])))"""))
+        assert size["group"][0] >= size["row"][0] and size["group"][1] > size["row"][1], \
+            f"group heading does not outrank its rows: {size}"
         print(f"ok  empty state guides the user; group {size['group']}px > row {size['row']}px")
 
         # N instances: the picker must offer 2..7 and never more, and opening

@@ -45,7 +45,7 @@
 
 <div id="gate" class="gate">
   <form id="unlock-form">
-    <h1>Shelldeck</h1>
+    <h1><svg class="ic brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-terminal"/></svg>Shelldeck</h1>
     <p id="gate-hint">Unlock your vault</p>
     <input id="master" type="password" placeholder="Master password" aria-label="Master password" autocomplete="current-password" autofocus>
     <input id="master-confirm" type="password" placeholder="Repeat it" aria-label="Repeat the master password" autocomplete="new-password" hidden>
@@ -237,6 +237,7 @@
     <label>Font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
     <label>Font family
       <select name="fontFamily">
+        <option value='"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", monospace'>Default</option>
         <option value="ui-monospace, monospace">System monospace</option>
         <option value="'Courier New', monospace">Courier</option>
         <option value="monospace">Plain monospace</option>

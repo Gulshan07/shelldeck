@@ -911,7 +911,7 @@ const termPanes = (tab) => (tab ? tab.panes.filter((p) => p.term) : []);
 function render() {
   const bcastN = termPanes(activeTab).length;
   const bcastBtn = activeTab && bcastN >= 2
-    ? `<button id="bcast-btn" class="${activeTab.broadcast ? "on" : ""}" aria-pressed="${!!activeTab.broadcast}" title="Send your typing to all ${bcastN} terminals in this tab">${icon("broadcast")}<span>broadcast${activeTab.broadcast ? " ON" : ""}</span></button>`
+    ? `<button id="bcast-btn" class="${activeTab.broadcast ? "on" : ""}" aria-pressed="${!!activeTab.broadcast}" title="Send your typing to all ${bcastN} terminals in this tab">${icon("broadcast")}<span>${activeTab.broadcast ? "Broadcasting" : "Broadcast"}</span></button>`
     : "";
   $("#tabbar").innerHTML = (tabs.map((t) => `
     <div class="tab ${t === activeTab ? "active" : ""} ${t.broadcast ? "bcast" : ""}" data-id="${t.id}">
@@ -980,17 +980,28 @@ function renderPaneEmpty(panes) {
 // --- terminal appearance ------------------------------------------------
 
 const THEMES = {
-  shelldeck:      { background: "#111318", foreground: "#d8dbe2", cursor: "#5aa9e6" },
+  // Shelldeck's two match the chrome (style.css --term-bg) so a pane has no frame.
+  shelldeck: { background: "#171513", foreground: "#e8e3da", cursor: "#f2efe9", cursorAccent: "#171513",
+    selectionBackground: "#4a433d",
+    black: "#2b2622", red: "#ec7a6f", green: "#9fcf8f", yellow: "#e5b567", blue: "#86a9e0",
+    magenta: "#c79ad6", cyan: "#7fc4c0", white: "#d9d2c5",
+    brightBlack: "#7d746a", brightRed: "#f59a90", brightGreen: "#b5dfa6", brightYellow: "#f0cb85",
+    brightBlue: "#a5c1ec", brightMagenta: "#d9b5e4", brightCyan: "#9fd8d4", brightWhite: "#f7f5f0" },
   black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
   solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
-  light:     { background: "#fdf6e3", foreground: "#3b4045", cursor: "#268bd2" },
+  light: { background: "#fbfaf7", foreground: "#2b2622", cursor: "#2b2622", cursorAccent: "#fbfaf7",
+    selectionBackground: "#e2dcd0",
+    black: "#2b2622", red: "#b03a2e", green: "#2f6f2a", yellow: "#8a5a00", blue: "#2d5aa0",
+    magenta: "#8a3f9a", cyan: "#1f6f6b", white: "#8c8378",
+    brightBlack: "#6e665e", brightRed: "#c6463a", brightGreen: "#3a8234", brightYellow: "#a06a00",
+    brightBlue: "#3a6bb8", brightMagenta: "#9c4dad", brightCyan: "#25817c", brightWhite: "#2b2622" },
 };
 
 function loadPrefs() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem("termPrefs")) || {}; } catch {}
   return { theme: p.theme || "shelldeck", fontSize: p.fontSize || 13,
-           fontFamily: p.fontFamily || "ui-monospace, monospace" };
+           fontFamily: p.fontFamily || '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", monospace' };
 }
 let termPrefs = loadPrefs();
 
