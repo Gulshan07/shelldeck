@@ -2,6 +2,30 @@
    Tokens first, then layout, then components. Class names are load-bearing:
    app.js and test_ui.py select on them, so they are preserved verbatim. */
 
+/* Bundled fonts (static/vendor/fonts, SIL OFL / Ubuntu Font Licence): served
+   from this machine, so picking one never makes a network request. */
+@font-face { font-family:"Inter"; src:url(vendor/fonts/inter-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Inter"; src:url(vendor/fonts/inter-500.woff2) format("woff2"); font-weight:500; font-display:swap; }
+@font-face { font-family:"Inter"; src:url(vendor/fonts/inter-600.woff2) format("woff2"); font-weight:600; font-display:swap; }
+@font-face { font-family:"IBM Plex Sans"; src:url(vendor/fonts/ibm-plex-sans-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"IBM Plex Sans"; src:url(vendor/fonts/ibm-plex-sans-500.woff2) format("woff2"); font-weight:500; font-display:swap; }
+@font-face { font-family:"IBM Plex Sans"; src:url(vendor/fonts/ibm-plex-sans-600.woff2) format("woff2"); font-weight:600; font-display:swap; }
+@font-face { font-family:"Source Sans 3"; src:url(vendor/fonts/source-sans-3-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Source Sans 3"; src:url(vendor/fonts/source-sans-3-500.woff2) format("woff2"); font-weight:500; font-display:swap; }
+@font-face { font-family:"Source Sans 3"; src:url(vendor/fonts/source-sans-3-600.woff2) format("woff2"); font-weight:600; font-display:swap; }
+@font-face { font-family:"JetBrains Mono"; src:url(vendor/fonts/jetbrains-mono-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"JetBrains Mono"; src:url(vendor/fonts/jetbrains-mono-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+@font-face { font-family:"Fira Code"; src:url(vendor/fonts/fira-code-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Fira Code"; src:url(vendor/fonts/fira-code-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+@font-face { font-family:"Cascadia Code"; src:url(vendor/fonts/cascadia-code-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Cascadia Code"; src:url(vendor/fonts/cascadia-code-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+@font-face { font-family:"IBM Plex Mono"; src:url(vendor/fonts/ibm-plex-mono-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"IBM Plex Mono"; src:url(vendor/fonts/ibm-plex-mono-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+@font-face { font-family:"Source Code Pro"; src:url(vendor/fonts/source-code-pro-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Source Code Pro"; src:url(vendor/fonts/source-code-pro-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+@font-face { font-family:"Ubuntu Mono"; src:url(vendor/fonts/ubuntu-mono-400.woff2) format("woff2"); font-weight:400; font-display:swap; }
+@font-face { font-family:"Ubuntu Mono"; src:url(vendor/fonts/ubuntu-mono-700.woff2) format("woff2"); font-weight:700; font-display:swap; }
+
 /* Themes (see DESIGN.md). Each theme sets only its base colours; everything
    else is derived here, so a new theme is one short block. Colour means state
    -- ok / warn / danger -- never decoration; --signal marks where you are.
@@ -25,51 +49,117 @@
   --mono:"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", "Noto Sans Mono", monospace;
   --ease:cubic-bezier(.2,.7,.3,1);
 }
-/* Graphite: cool charcoal, teal signal (the default) */
+/* Graphite */
 :root, [data-theme="dark"] {
-  --bg:#111316; --panel:#15181c; --raised:#1d2126; --line:#2a2f36; --ctl:#5f6873;
+  --bg:#111316; --panel:#15181c; --raised:#1d2126; --line:#2a2f36; --ctl:#63666b;
   --fg:#e7eaee; --fg-2:#b4bcc7; --fg-3:#8a93a0; --signal:#6fc2c9;
   --ok:#7fcf9a; --warn:#e3b66a; --danger:#f07a72;
 }
-/* Midnight: deep navy, periwinkle signal */
+/* Midnight */
 [data-theme="midnight"] {
-  --bg:#0e1220; --panel:#121729; --raised:#1a2036; --line:#263052; --ctl:#5b6a94;
+  --bg:#0e1220; --panel:#121729; --raised:#1a2036; --line:#263052; --ctl:#606780;
   --fg:#e4e8f4; --fg-2:#aeb7d0; --fg-3:#8590b0; --signal:#8fa8ff;
   --ok:#7fd0a0; --warn:#e7bb6e; --danger:#f27b84;
 }
-/* Ember: warm charcoal, coral signal */
+/* Ember */
 [data-theme="ember"] {
-  --bg:#171513; --panel:#1e1b19; --raised:#282421; --line:#3d3733; --ctl:#746b62;
+  --bg:#171513; --panel:#1e1b19; --raised:#282421; --line:#3d3733; --ctl:#716c6a;
   --fg:#f2efe9; --fg-2:#c9c0ad; --fg-3:#968d82; --signal:#e8916b;
   --ok:#8cc77f; --warn:#e5b567; --danger:#ec7a6f;
 }
-/* Moss: green-grey, mint signal */
+/* Moss */
 [data-theme="moss"] {
-  --bg:#101512; --panel:#141a16; --raised:#1c241f; --line:#2a352e; --ctl:#5f7266;
+  --bg:#101512; --panel:#141a16; --raised:#1c241f; --line:#2a352e; --ctl:#636a66;
   --fg:#e5ece7; --fg-2:#b0c0b5; --fg-3:#879a8d; --signal:#8fd3c1;
   --ok:#9bd67f; --warn:#e3b86a; --danger:#ee7d72;
 }
-/* Void: true black for OLED and high contrast, cyan signal */
+/* Void */
 [data-theme="void"] {
-  --bg:#000000; --panel:#0a0a0a; --raised:#161616; --line:#2a2a2a; --ctl:#6a6a6a;
+  --bg:#000000; --panel:#0a0a0a; --raised:#161616; --line:#2a2a2a; --ctl:#636363;
   --fg:#ffffff; --fg-2:#cfcfcf; --fg-3:#9e9e9e; --signal:#00d0ff;
   --ok:#4ee08a; --warn:#ffc94d; --danger:#ff6b6b;
 }
-/* Paper: cool light */
+/* Dracula */
+[data-theme="dracula"] {
+  --bg:#282a36; --panel:#21222c; --raised:#343746; --line:#44475a; --ctl:#767886;
+  --fg:#f8f8f2; --fg-2:#d6d6e2; --fg-3:#9aa3c8; --signal:#bd93f9;
+  --ok:#50fa7b; --warn:#f1fa8c; --danger:#ff7a7a;
+}
+/* Nord */
+[data-theme="nord"] {
+  --bg:#2e3440; --panel:#292e39; --raised:#3b4252; --line:#434c5e; --ctl:#7d8391;
+  --fg:#eceff4; --fg-2:#d8dee9; --fg-3:#aeb6c4; --signal:#88c0d0;
+  --ok:#a3be8c; --warn:#ebcb8b; --danger:#daa190;
+}
+/* Gruvbox */
+[data-theme="gruvbox"] {
+  --bg:#282828; --panel:#1d2021; --raised:#32302f; --line:#3c3836; --ctl:#797674;
+  --fg:#ebdbb2; --fg-2:#d5c4a1; --fg-3:#a89984; --signal:#fe8019;
+  --ok:#b8bb26; --warn:#fabd2f; --danger:#fb6856;
+}
+/* Tokyo Night */
+[data-theme="tokyo-night"] {
+  --bg:#1a1b26; --panel:#16161e; --raised:#24283b; --line:#292e42; --ctl:#6b6f7c;
+  --fg:#c0caf5; --fg-2:#a9b1d6; --fg-3:#8b91b5; --signal:#7aa2f7;
+  --ok:#9ece6a; --warn:#e0af68; --danger:#f7768e;
+}
+/* Catppuccin Mocha */
+[data-theme="catppuccin-mocha"] {
+  --bg:#1e1e2e; --panel:#181825; --raised:#313244; --line:#45475a; --ctl:#6d6f7e;
+  --fg:#cdd6f4; --fg-2:#bac2de; --fg-3:#a6adc8; --signal:#cba6f7;
+  --ok:#a6e3a1; --warn:#f9e2af; --danger:#f38ba8;
+}
+/* One Dark */
+[data-theme="one-dark"] {
+  --bg:#282c34; --panel:#21252b; --raised:#2c313a; --line:#3e4451; --ctl:#72767f;
+  --fg:#dcdfe4; --fg-2:#abb2bf; --fg-3:#969ca9; --signal:#61afef;
+  --ok:#98c379; --warn:#e5c07b; --danger:#e47d85;
+}
+/* Rosé Pine */
+[data-theme="rose-pine"] {
+  --bg:#191724; --panel:#1f1d2e; --raised:#26233a; --line:#403d52; --ctl:#6a6878;
+  --fg:#e0def4; --fg-2:#c4c1de; --fg-3:#908caa; --signal:#ebbcba;
+  --ok:#9ccfd8; --warn:#f6c177; --danger:#eb6f92;
+}
+/* Solarized Dark */
+[data-theme="solarized-dark"] {
+  --bg:#002b36; --panel:#00222b; --raised:#073642; --line:#0e4552; --ctl:#4e7680;
+  --fg:#eee8d5; --fg-2:#93a1a1; --fg-3:#91a0a2; --signal:#268bd2;
+  --ok:#93a51d; --warn:#bd971d; --danger:#e97a78;
+}
+/* Paper */
 [data-theme="light"] {
-  --bg:#eef1f4; --panel:#fafbfc; --raised:#e3e7ec; --line:#d6dce3; --ctl:#858f9b;
+  --bg:#eef1f4; --panel:#fafbfc; --raised:#e3e7ec; --line:#d6dce3; --ctl:#8b8f93;
   --fg:#15191e; --fg-2:#3f4752; --fg-3:#5a6370; --signal:#19707a;
   --ok:#1d6e36; --warn:#855800; --danger:#b42d2d;
 }
-/* Sand: warm light, sienna signal */
+/* Sand */
 [data-theme="sand"] {
-  --bg:#f4efe3; --panel:#fbf8f1; --raised:#ebe4d4; --line:#ddd4c0; --ctl:#8f8572;
+  --bg:#f4efe3; --panel:#fbf8f1; --raised:#ebe4d4; --line:#ddd4c0; --ctl:#90897c;
   --fg:#2a2620; --fg-2:#544c40; --fg-3:#6c6352; --signal:#9a4f2a;
   --ok:#2f6f2a; --warn:#855800; --danger:#b03a2e;
 }
+/* GitHub Light */
+[data-theme="github-light"] {
+  --bg:#f6f8fa; --panel:#ffffff; --raised:#eaeef2; --line:#d0d7de; --ctl:#909599;
+  --fg:#1f2328; --fg-2:#424a53; --fg-3:#59636e; --signal:#0969da;
+  --ok:#187734; --warn:#916100; --danger:#cf222e;
+}
+/* Catppuccin Latte */
+[data-theme="catppuccin-latte"] {
+  --bg:#e6e9ef; --panel:#eff1f5; --raised:#dce0e8; --line:#ccd0da; --ctl:#84878d;
+  --fg:#4c4f69; --fg-2:#5c5f77; --fg-3:#606276; --signal:#8839ef;
+  --ok:#2c6f1e; --warn:#885613; --danger:#c50e36;
+}
+/* Solarized Light */
+[data-theme="solarized-light"] {
+  --bg:#eee8d5; --panel:#fdf6e3; --raised:#e4ddc8; --line:#d9d2bc; --ctl:#8c887a;
+  --fg:#073642; --fg-2:#4e6167; --fg-3:#4f6066; --signal:#2483c5;
+  --ok:#566300; --warn:#765900; --danger:#b72927;
+}
 /* Light themes: dark text on a light ground reads thinner and smaller, so they
    are one step up in size and weight -- not just the dark layout inverted. */
-[data-theme="light"], [data-theme="sand"] {
+[data-theme="light"], [data-theme="sand"], [data-theme="github-light"], [data-theme="catppuccin-latte"], [data-theme="solarized-light"] {
   --field:#ffffff; --term-bg:var(--panel); --accent-fg:var(--panel);
   --shadow:0 12px 32px rgba(20,24,30,.14);
   --t-xs:12px; --t-sm:13px; --t-md:14px; --t-lg:16px; --t-xl:22px;
@@ -482,8 +572,10 @@ details label { margin-top:9px; }
 }
 
 /* --- theme picker -------------------------------------------------------- */
-#theme-picker { border:none; padding:0; margin:0; display:grid; gap:6px;
-  grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
+#theme-picker { border:none; padding:0; margin:0; display:grid; gap:8px; }
+#theme-picker .tp-grid { display:grid; gap:6px; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); }
+#theme-picker h3 { margin:2px 0 0; font-size:var(--t-xs); font-weight:500; color:var(--fg-3); }
+.prefs-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 #theme-picker legend { font-size:var(--t-sm); color:var(--fg-2); padding:0; margin-bottom:6px; }
 /* Each card wears its own theme, so it previews it whatever the page uses. */
 .theme-card { display:grid; gap:6px; padding:8px; cursor:pointer; color:var(--fg);
@@ -496,4 +588,4 @@ details label { margin-top:9px; }
 .theme-card .sw { display:grid; grid-template-columns:2fr 1fr; gap:3px; height:30px; }
 .theme-card .sw i { border-radius:2px; background:var(--panel); border:1px solid var(--line); }
 .theme-card .sw i:last-child { background:var(--signal); border-color:var(--signal); }
-#prefs-dlg { width:min(520px, 94vw); }
+#prefs-dlg { width:min(620px, 95vw); max-height:90vh; overflow:auto; }

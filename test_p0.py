@@ -239,6 +239,40 @@ def test_macro_status_hides_answers_to_password_prompts():
     asyncio.run(go())
 
 
+def test_every_theme_is_readable():
+    """Each [data-theme] block in style.css must keep text at 4.5:1 and control
+    borders at 3:1 on the surfaces they sit on -- a new theme can't skip this."""
+    import re, pathlib
+    css = (pathlib.Path(__file__).parent / "shelldeck/static/style.css").read_text()
+
+    def lum(h):
+        h = h.lstrip("#")
+        c = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        c = [x / 12.92 if x <= 0.03928 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+    def ratio(a, b):
+        hi, lo = sorted((lum(a), lum(b)), reverse=True)
+        return (hi + 0.05) / (lo + 0.05)
+
+    light = set(re.search(r"/\* Light themes.*?\*/\s*([^{]+)\{", css, re.S).group(1)
+                .replace('[data-theme="', "").replace('"]', "").replace(",", " ").split())
+    themes = re.findall(r'(?:^|\n)(?::root, )?\[data-theme="([\w-]+)"\] \{([^}]*)\}', css)
+    assert len(themes) >= 18, f"expected 18+ themes, found {len(themes)}"
+    for name, body in themes:
+        t = dict(re.findall(r"--([\w-]+):(#[0-9a-fA-F]{6})", body))
+        if not {"bg", "panel", "raised", "fg"} <= t.keys():
+            continue                                  # a shared rule, not a theme
+        field = "#ffffff" if name in light else t["bg"]
+        for k in ("fg", "fg-2", "fg-3", "ok", "warn", "danger"):
+            for surf in ("bg", "panel", "raised"):
+                r = ratio(t[k], t[surf])
+                assert r >= 4.5, f"{name}: --{k} on --{surf} is {r:.2f}:1"
+        for surf in (field, t["panel"]):
+            r = ratio(t["ctl"], surf)
+            assert r >= 3, f"{name}: --ctl border is {r:.2f}:1"
+
+
 def test_parse_forward():
     from shelldeck.server import parse_forward
 

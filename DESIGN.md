@@ -41,15 +41,14 @@ The table is Graphite (dark) and Paper (light). Seven themes ship, each a
 short block in `style.css` that sets only the base colours above; fields,
 weak tints, focus ring and terminal background are derived from them.
 
-| Theme | Tone | Signal |
-|---|---|---|
-| Graphite (`dark`, default) | cool charcoal | teal |
-| Midnight | deep navy | periwinkle |
-| Ember | warm charcoal | coral |
-| Moss | green-grey | mint |
-| Void | true black, high contrast | cyan |
-| Paper (`light`) | cool light | dark teal |
-| Sand | warm light | sienna |
+Dark: Graphite (`dark`, default), Midnight, Ember, Moss, Void, Dracula, Nord,
+Gruvbox, Tokyo Night, Catppuccin Mocha, One Dark, Rosé Pine, Solarized Dark.
+Light: Paper (`light`), Sand, GitHub Light, Catppuccin Latte, Solarized Light.
+
+Themes based on a published palette keep that palette exactly in the
+terminal; in the interface, any colour that misses a contrast minimum is
+nudged toward the text colour until it passes (`test_p0.py` checks every
+theme block, so a new theme cannot skip this).
 
 Each theme has a matching terminal palette in `app.js` (`TERM_THEMES`), with
 the same background as the chrome. The sun/moon button swaps between the last
@@ -60,8 +59,13 @@ both themes. Check new pairs before adding them.
 
 ## Type
 
-- UI: `--sans` (Inter when installed, otherwise the system sans).
-- Code, addresses, sizes, fingerprints: `--mono`.
+- UI: `--sans`, chosen in Appearance: Inter (default), IBM Plex Sans,
+  Source Sans 3 or the system font.
+- Code, addresses, sizes, fingerprints: `--mono`, which follows the terminal
+  font: JetBrains Mono (default), Fira Code, Cascadia Code, IBM Plex Mono,
+  Source Code Pro, Ubuntu Mono, system monospace or Courier.
+- Every font ships in `static/vendor/fonts` (OFL / Ubuntu Font Licence), so
+  choosing one never makes a network request.
 - Five sizes only: `--t-xs` 11, `--t-sm` 12, `--t-md` 13 (body), `--t-lg` 15
   (dialog titles), `--t-xl` 20 (unlock screen). Weights 400, 500, 600.
 - The light theme steps every size up by 1px (2px for the largest) and host
@@ -96,7 +100,7 @@ they would flicker). `prefers-reduced-motion` turns all of it off.
 
 ## Constraints
 
-- No web fonts or CDNs: the app makes no outbound requests.
+- No CDNs: fonts are bundled, and the app makes no outbound requests.
 - Plain CSS, no build step. Element ids and class names are used by
   `app.js` and `test_ui.py`; restyle them, do not rename them.
 - `prefers-reduced-motion` turns animation off.

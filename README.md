@@ -134,7 +134,10 @@ Everything else works without it.
 
 ### Interface
 
-- Light and dark themes
+- 18 themes (Graphite, Midnight, Dracula, Nord, Gruvbox, Tokyo Night,
+  Catppuccin, Solarized and more, dark and light), each with a matching terminal palette
+- A choice of bundled interface and terminal fonts (JetBrains Mono, Fira Code,
+  Cascadia Code, IBM Plex, Inter and others), shipped with the app
 - Fully keyboard-navigable, with shortcuts on <kbd>Alt</kbd> so they do not
   collide with the browser's own
 
@@ -275,6 +278,14 @@ Released under the [MIT Licence](LICENSE).
   `shelldeck/static/vendor/`.
 - [jsQR](https://github.com/cozmo/jsQR) (Apache-2.0), vendored alongside it,
   unmodified; reads authenticator QR codes in the browser.
+- Fonts bundled in `shelldeck/static/vendor/fonts/` under the SIL Open Font
+  License (Inter, IBM Plex Sans and Mono, Source Sans 3, Source Code Pro,
+  JetBrains Mono, Fira Code, Cascadia Code) and the Ubuntu Font Licence
+  (Ubuntu Mono). Licence texts sit beside the font files.
+- Terminal palettes for Dracula, Nord, Gruvbox, Tokyo Night, Catppuccin,
+  One Dark, Rosé Pine, Solarized and GitHub follow those projects' published
+  (MIT) colour schemes; the interface colours derived from them are adjusted
+  where needed to meet contrast minimums.
 
 ---
 

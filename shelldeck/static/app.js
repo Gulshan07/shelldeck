@@ -56,9 +56,24 @@ function pick(title, note, items) {
 // Ids match [data-theme] blocks in style.css and keys in TERM_THEMES; "dark" and
 // "light" keep their old ids so a saved choice survives the upgrade.
 const APP_THEMES = [
-  { id: "dark", name: "Graphite" }, { id: "midnight", name: "Midnight" },
-  { id: "ember", name: "Ember" }, { id: "moss", name: "Moss" }, { id: "void", name: "Void" },
-  { id: "light", name: "Paper", light: true }, { id: "sand", name: "Sand", light: true },
+  { id: "dark", name: "Graphite" },
+  { id: "midnight", name: "Midnight" },
+  { id: "ember", name: "Ember" },
+  { id: "moss", name: "Moss" },
+  { id: "void", name: "Void" },
+  { id: "dracula", name: "Dracula" },
+  { id: "nord", name: "Nord" },
+  { id: "gruvbox", name: "Gruvbox" },
+  { id: "tokyo-night", name: "Tokyo Night" },
+  { id: "catppuccin-mocha", name: "Catppuccin Mocha" },
+  { id: "one-dark", name: "One Dark" },
+  { id: "rose-pine", name: "Rosé Pine" },
+  { id: "solarized-dark", name: "Solarized Dark" },
+  { id: "light", name: "Paper", light: true },
+  { id: "sand", name: "Sand", light: true },
+  { id: "github-light", name: "GitHub Light", light: true },
+  { id: "catppuccin-latte", name: "Catppuccin Latte", light: true },
+  { id: "solarized-light", name: "Solarized Light", light: true },
 ];
 const isLight = (t) => !!APP_THEMES.find((x) => x.id === t)?.light;
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -1017,36 +1032,81 @@ function term(bg, fg, cursor, sel, ansi) {
   return t;
 }
 const TERM_THEMES = {
-  dark: term("#111316", "#dfe3e8", "#6fc2c9", "#2c3a44",
+  "dark": term("#111316", "#e7eaee", "#6fc2c9", "#2c3a44",
     "#1d2126 #f07a72 #7fcf9a #e3b66a #7aa8e8 #c49ae6 #6fc2c9 #c9cfd6 #6b7480 #f79a93 #9ddfb3 #efca8a #9cc0f0 #d6b6ef #93d6dc #f3f5f7"),
-  midnight: term("#0e1220", "#dde3f2", "#8fa8ff", "#2a3560",
+  "midnight": term("#0e1220", "#e4e8f4", "#8fa8ff", "#2a3560",
     "#1a2036 #f27b84 #7fd0a0 #e7bb6e #8fa8ff #c9a0f0 #79c9e0 #c3cbe0 #66729a #f79aa1 #a0e0bb #f0cd8e #b0c2ff #dbbdf5 #9cdcec #f2f4fb"),
-  ember: term("#171513", "#e8e3da", "#e8916b", "#4a433d",
+  "ember": term("#171513", "#f2efe9", "#e8916b", "#4a433d",
     "#2b2622 #ec7a6f #9fcf8f #e5b567 #86a9e0 #c79ad6 #7fc4c0 #d9d2c5 #7d746a #f59a90 #b5dfa6 #f0cb85 #a5c1ec #d9b5e4 #9fd8d4 #f7f5f0"),
-  moss: term("#101512", "#dfe8e2", "#8fd3c1", "#2a3a31",
+  "moss": term("#101512", "#e5ece7", "#8fd3c1", "#2a3a31",
     "#1c241f #ee7d72 #9bd67f #e3b86a #85aedb #c59bd8 #8fd3c1 #c3cfc7 #66786c #f59c93 #b6e3a0 #eecb8c #a6c6e8 #d7b8e5 #abe0d3 #f2f6f3"),
-  void: term("#000000", "#f0f0f0", "#00d0ff", "#263040",
+  "void": term("#000000", "#ffffff", "#00d0ff", "#263040",
     "#1a1a1a #ff6b6b #4ee08a #ffc94d #5ca8ff #d58cff #00d0ff #d0d0d0 #707070 #ff8f8f #7ff0ad #ffd97d #8cc2ff #e3b0ff #66e3ff #ffffff"),
-  light: term("#fafbfc", "#15191e", "#19707a", "#cfe3e6",
+  "dracula": term("#282a36", "#f8f8f2", "#f8f8f2", "#44475a",
+    "#21222c #ff5555 #50fa7b #f1fa8c #bd93f9 #ff79c6 #8be9fd #f8f8f2 #6272a4 #ff6e6e #69ff94 #ffffa5 #d6acff #ff92df #a4ffff #ffffff"),
+  "nord": term("#2e3440", "#eceff4", "#d8dee9", "#434c5e",
+    "#3b4252 #bf616a #a3be8c #ebcb8b #81a1c1 #b48ead #88c0d0 #e5e9f0 #4c566a #bf616a #a3be8c #ebcb8b #81a1c1 #b48ead #8fbcbb #eceff4"),
+  "gruvbox": term("#282828", "#ebdbb2", "#ebdbb2", "#504945",
+    "#282828 #cc241d #98971a #d79921 #458588 #b16286 #689d6a #a89984 #928374 #fb4934 #b8bb26 #fabd2f #83a598 #d3869b #8ec07c #ebdbb2"),
+  "tokyo-night": term("#1a1b26", "#c0caf5", "#c0caf5", "#283457",
+    "#15161e #f7768e #9ece6a #e0af68 #7aa2f7 #bb9af7 #7dcfff #a9b1d6 #414868 #f7768e #9ece6a #e0af68 #7aa2f7 #bb9af7 #7dcfff #c0caf5"),
+  "catppuccin-mocha": term("#1e1e2e", "#cdd6f4", "#f5e0dc", "#45475a",
+    "#45475a #f38ba8 #a6e3a1 #f9e2af #89b4fa #f5c2e7 #94e2d5 #bac2de #585b70 #f38ba8 #a6e3a1 #f9e2af #89b4fa #f5c2e7 #94e2d5 #a6adc8"),
+  "one-dark": term("#282c34", "#dcdfe4", "#528bff", "#3e4451",
+    "#282c34 #e06c75 #98c379 #e5c07b #61afef #c678dd #56b6c2 #dcdfe4 #5c6370 #e06c75 #98c379 #e5c07b #61afef #c678dd #56b6c2 #ffffff"),
+  "rose-pine": term("#191724", "#e0def4", "#524f67", "#403d52",
+    "#26233a #eb6f92 #31748f #f6c177 #9ccfd8 #c4a7e7 #ebbcba #e0def4 #6e6a86 #eb6f92 #31748f #f6c177 #9ccfd8 #c4a7e7 #ebbcba #e0def4"),
+  "solarized-dark": term("#002b36", "#eee8d5", "#93a1a1", "#073642",
+    "#073642 #dc322f #859900 #b58900 #268bd2 #d33682 #2aa198 #eee8d5 #002b36 #cb4b16 #586e75 #657b83 #839496 #6c71c4 #93a1a1 #fdf6e3"),
+  "light": term("#fafbfc", "#15191e", "#19707a", "#cfe3e6",
     "#15191e #b42d2d #1d6e36 #855800 #245ea8 #80379a #19707a #6b7480 #5a6370 #c73a3a #26803f #9a6700 #2f6dbb #9145ab #1f8390 #15191e"),
-  sand: term("#fbf8f1", "#2a2620", "#9a4f2a", "#e8dcc4",
+  "sand": term("#fbf8f1", "#2a2620", "#9a4f2a", "#e8dcc4",
     "#2a2620 #b03a2e #2f6f2a #855800 #2d5aa0 #8a3f9a #1f6f6b #8c8378 #6c6352 #c6463a #3a8234 #9a6700 #3a6bb8 #9c4dad #25817c #2a2620"),
-  black:     { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
-  solarized: { background: "#002b36", foreground: "#93a1a1", cursor: "#b58900" },
+  "github-light": term("#ffffff", "#1f2328", "#0969da", "#ddf4ff",
+    "#24292f #cf222e #116329 #4d2d00 #0969da #8250df #1b7c83 #6e7781 #57606a #a40e26 #1a7f37 #633c01 #218bff #a475f9 #3192aa #8c959f"),
+  "catppuccin-latte": term("#eff1f5", "#4c4f69", "#dc8a78", "#ccd0da",
+    "#5c5f77 #d20f39 #40a02b #df8e1d #1e66f5 #ea76cb #179299 #acb0be #6c6f85 #d20f39 #40a02b #df8e1d #1e66f5 #ea76cb #179299 #bcc0cc"),
+  "solarized-light": term("#fdf6e3", "#073642", "#586e75", "#eee8d5",
+    "#073642 #dc322f #859900 #b58900 #268bd2 #d33682 #2aa198 #eee8d5 #002b36 #cb4b16 #586e75 #657b83 #839496 #6c71c4 #93a1a1 #fdf6e3"),
+  black: { background: "#000000", foreground: "#e0e0e0", cursor: "#ffffff" },
 };
 // "auto" (the default) follows the app theme; old saved values did the same.
 function termTheme() {
-  const t = termPrefs.theme;
-  if (t === "black" || t === "solarized") return TERM_THEMES[t];
-  return TERM_THEMES[document.documentElement.getAttribute("data-theme")] || TERM_THEMES.dark;
+  return TERM_THEMES[termPrefs.theme] ||
+    TERM_THEMES[document.documentElement.getAttribute("data-theme")] || TERM_THEMES.dark;
 }
+
+// Fonts ship in static/vendor/fonts; "system" entries use what the OS has.
+const UI_FONTS = [
+  ["Inter", 'Inter, ui-sans-serif, system-ui, sans-serif'],
+  ["IBM Plex Sans", '"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif'],
+  ["Source Sans 3", '"Source Sans 3", ui-sans-serif, system-ui, sans-serif'],
+  ["System", 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif'],
+];
+const MONO_FONTS = [
+  ["JetBrains Mono", '"JetBrains Mono", monospace'],
+  ["Fira Code", '"Fira Code", monospace'],
+  ["Cascadia Code", '"Cascadia Code", monospace'],
+  ["IBM Plex Mono", '"IBM Plex Mono", monospace'],
+  ["Source Code Pro", '"Source Code Pro", monospace'],
+  ["Ubuntu Mono", '"Ubuntu Mono", monospace'],
+  ["System monospace", "ui-monospace, monospace"],
+  ["Courier", "'Courier New', monospace"],
+];
+const fontOk = (list, v) => list.some(([, css]) => css === v);
+function applyUiFont(css) {
+  if (!fontOk(UI_FONTS, css)) css = UI_FONTS[0][1];
+  document.documentElement.style.setProperty("--sans", css);
+  store("uiFont", css);
+}
+applyUiFont(stored("uiFont"));
 
 function loadPrefs() {
   let p = {};
   try { p = JSON.parse(localStorage.getItem("termPrefs")) || {}; } catch {}
-  const theme = p.theme === "black" || p.theme === "solarized" ? p.theme : "auto";
-  return { theme, fontSize: p.fontSize || 13,
-           fontFamily: p.fontFamily || '"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", monospace' };
+  const theme = p.theme in TERM_THEMES ? p.theme : "auto";
+  const fontFamily = fontOk(MONO_FONTS, p.fontFamily) ? p.fontFamily : MONO_FONTS[0][1];
+  return { theme, fontSize: p.fontSize || 13, fontFamily };
 }
 let termPrefs = loadPrefs();
 
@@ -1057,14 +1117,21 @@ function termOptions() {
 
 const liveTerms = new Set();
 
-function applyPrefs() {
+// xterm measures glyphs when the font is set, so load a bundled font before
+// handing it over, then set it again: otherwise it keeps the fallback's metrics.
+async function applyPrefs() {
+  const fam = termPrefs.fontFamily;
+  document.documentElement.style.setProperty("--mono", fam);
+  try { await Promise.all([document.fonts.load(`13px ${fam}`), document.fonts.load(`bold 13px ${fam}`)]); } catch {}
   for (const t of liveTerms) {
     t.options.fontSize = +termPrefs.fontSize;
-    t.options.fontFamily = termPrefs.fontFamily;
+    if (t.options.fontFamily === fam) t.options.fontFamily = "monospace";
+    t.options.fontFamily = fam;
     t.options.theme = termTheme();
   }
   activeTab?.panes.forEach((p) => p.resize?.());
 }
+applyPrefs();
 
 let macros = [];
 async function loadMacros() { try { macros = await api("/api/macros"); } catch { macros = []; } }
@@ -1128,21 +1195,31 @@ async function runMacroOn(pane) {
     p.ws.send(JSON.stringify({ type: "macro", body: m.body }));
 }
 
-$("#theme-picker").insertAdjacentHTML("beforeend", APP_THEMES.map((t) => `
+const themeCards = (light) => APP_THEMES.filter((t) => !!t.light === light).map((t) => `
   <label class="theme-card" data-theme="${t.id}">
     <input type="radio" name="app_theme" value="${t.id}">
     <span class="sw" aria-hidden="true"><i></i><i></i></span><span>${t.name}</span>
-  </label>`).join(""));
+  </label>`).join("");
+$("#theme-picker").insertAdjacentHTML("beforeend",
+  `<h3>Dark</h3><div class="tp-grid dark-themes">${themeCards(false)}</div>` +
+  `<h3>Light</h3><div class="tp-grid light-themes">${themeCards(true)}</div>`);
+for (const [sel, list] of [["ui_font", UI_FONTS], ["fontFamily", MONO_FONTS]])
+  $("#prefs-form")[sel].append(...list.map(([name, css]) => new Option(name, css)));
+$("#prefs-form").theme.innerHTML = '<option value="auto">Match the theme</option>' +
+  APP_THEMES.map((t) => `<option value="${t.id}">${t.name}</option>`).join("") +
+  '<option value="black">Black</option>';
 $("#prefs-btn").onclick = () => {
   const f = $("#prefs-form");
   f.app_theme.value = document.documentElement.getAttribute("data-theme");
   f.theme.value = termPrefs.theme; f.fontSize.value = termPrefs.fontSize;
   f.fontFamily.value = termPrefs.fontFamily;
+  f.ui_font.value = stored("uiFont") || UI_FONTS[0][1];
   $("#prefs-dlg").showModal();
 };
 $("#prefs-form").oninput = () => {
   const f = $("#prefs-form");
   if (f.app_theme.value) applyChromeTheme(f.app_theme.value);
+  applyUiFont(f.ui_font.value);
   termPrefs = { theme: f.theme.value, fontSize: f.fontSize.value, fontFamily: f.fontFamily.value };
   try { localStorage.setItem("termPrefs", JSON.stringify(termPrefs)); } catch {}
   applyPrefs();

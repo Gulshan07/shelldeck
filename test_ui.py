@@ -450,6 +450,27 @@ async def main():
         await c.js('applyChromeTheme("dark")')
         print("ok  app themes switch chrome and terminals together; toggle remembers the dark one")
 
+        # many themes, sorted into dark and light; fonts ship with the app
+        await c.js(q + '("#prefs-btn").click()')
+        n_dark = await c.js('document.querySelectorAll("#theme-picker .dark-themes .theme-card").length')
+        n_light = await c.js('document.querySelectorAll("#theme-picker .light-themes .theme-card").length')
+        assert n_dark + n_light >= 18 and n_light >= 4, (n_dark, n_light)
+        ui_fonts = await c.js('document.querySelector("#prefs-form").ui_font.options.length')
+        mono_fonts = await c.js('document.querySelector("#prefs-form").fontFamily.options.length')
+        assert ui_fonts >= 4 and mono_fonts >= 7, (ui_fonts, mono_fonts)
+        await c.js('''(() => { const f = document.querySelector("#prefs-form");
+            f.ui_font.value = [...f.ui_font.options].find((o) => o.text === "IBM Plex Sans").value;
+            f.fontFamily.value = [...f.fontFamily.options].find((o) => o.text === "Fira Code").value;
+            f.dispatchEvent(new Event("input")); })()''')
+        await asyncio.sleep(1)
+        assert "IBM Plex Sans" in await c.js('getComputedStyle(document.body).fontFamily')
+        assert "Fira Code" in await c.js("termOptions().fontFamily")
+        assert await c.js('document.fonts.check("13px \\"Fira Code\\"")'), "Fira Code was not loaded from the app"
+        assert await c.js('document.fonts.check("13px \\"IBM Plex Sans\\"")'), "IBM Plex Sans was not loaded"
+        assert "IBM Plex Sans" in await c.js('localStorage.getItem("uiFont")')
+        await c.js(q + '("#prefs-dlg").close()')
+        print(f"ok  {n_dark + n_light} themes, {ui_fonts} interface and {mono_fonts} terminal fonts, served locally")
+
         # --- search matches more than the name --------------------------------
         await c.js("""conns = [
           {id:'s1', name:'app1', group:'PROD', host:'10.2.137.119', port:22, user:'ubuntu',

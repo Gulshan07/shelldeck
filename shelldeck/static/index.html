@@ -232,23 +232,15 @@
   <form method="dialog" id="prefs-form">
     <h2>Appearance</h2>
     <fieldset id="theme-picker"><legend>Theme</legend></fieldset>
-    <label>Terminal colours
-      <select name="theme">
-        <option value="auto">Match the theme</option>
-        <option value="black">Black</option>
-        <option value="solarized">Solarized Dark</option>
-      </select>
-    </label>
-    <label>Font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
-    <label>Font family
-      <select name="fontFamily">
-        <option value='"JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, "DejaVu Sans Mono", monospace'>Default</option>
-        <option value="ui-monospace, monospace">System monospace</option>
-        <option value="'Courier New', monospace">Courier</option>
-        <option value="monospace">Plain monospace</option>
-      </select>
-    </label>
-    <p class="note">Applies to open and new terminals. Saved in this browser.</p>
+    <div class="prefs-row">
+      <label>Interface font <select name="ui_font"></select></label>
+      <label>Terminal font <select name="fontFamily"></select></label>
+    </div>
+    <div class="prefs-row">
+      <label>Terminal colours <select name="theme"></select></label>
+      <label>Terminal font size <input name="fontSize" type="number" min="8" max="28" value="13"></label>
+    </div>
+    <p class="note">Applies at once to open terminals. Saved in this browser. Fonts ship with Shelldeck.</p>
     <menu><button value="ok" autofocus>Done</button></menu>
   </form>
 </dialog>
