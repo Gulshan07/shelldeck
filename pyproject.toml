@@ -14,7 +14,7 @@ import = ["pyyaml>=6"]
 serial = ["pyserial-asyncio>=0.6"]
 # The suites need an HTTP client the app itself does not: starlette's TestClient
 # is built on httpx, and test_live.py drives the real server with it.
-test = ["httpx>=0.27,<0.29"]
+test = ["httpx>=0.28.1,<0.29"]
 
 [project.scripts]
 shelldeck = "shelldeck.__main__:main"
