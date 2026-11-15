@@ -4,6 +4,7 @@
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-4c8dff)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux-4c8dff)](#platform-support)
 [![Python](https://img.shields.io/badge/python-3.10%2B-4c8dff)](pyproject.toml)
+[![Stars](https://img.shields.io/github/stars/Gulshan07/shelldeck?style=social)](https://github.com/Gulshan07/shelldeck/stargazers)
 
 **A connection manager for SSH, SFTP, Telnet and serial consoles, with an
 encrypted vault and one-click VPN.**
@@ -12,6 +13,10 @@ Shelldeck keeps every server, key and credential you use in one place, opens
 them in tabs and split panes, and brings your VPN up with its two-factor code
 answered for you. It runs as a small local server and uses your browser as the
 interface, so there is nothing to compile and no desktop toolkit to install.
+
+**Available for Linux today. macOS and Windows apps are planned for the next
+phase.** If you find Shelldeck useful, please give it a ⭐ star: it helps other
+people find it.
 
 ![Shelldeck](docs/screenshot.png)
 
@@ -220,17 +225,19 @@ design decisions that look like flaws and are deliberate.
 
 ## Platform support
 
-Linux is the only platform released. Every build must pass
+Shelldeck is released for Linux. **macOS and Windows apps are planned for the
+next phase of development.** Every build must pass
 `packaging/smoke.py`, which launches the binary and checks that it serves its
 interface, bundles its assets and rejects an unauthenticated request.
 
 | Platform | Status |
 |---|---|
 | **Linux** | **Released.** Used daily on Ubuntu. AppImage provided. |
-| **macOS** | Code written, not released. macOS is POSIX, so the Linux code paths are expected to apply unchanged, but no build has been verified. A binary would be unsigned, so Gatekeeper will warn until it is signed. |
-| **Windows** | Code written, not released. The OS-specific paths exist (ACLs through `icacls`, binary-mode vault writes, administrator detection, OpenVPN located in `Program Files`) but have never run on Windows. The VPN will need the app run as Administrator. |
+| **macOS** | **Next phase.** Code written, not yet released. macOS is POSIX, so the Linux code paths are expected to apply unchanged, but no build has been verified. A binary would be unsigned, so Gatekeeper will warn until it is signed. |
+| **Windows** | **Next phase.** Code written, not yet released. The OS-specific paths exist (ACLs through `icacls`, binary-mode vault writes, administrator detection, OpenVPN located in `Program Files`) but have never run on Windows. The VPN will need the app run as Administrator. |
 
-Verifying either platform is the most useful contribution right now. See
+If you run macOS or Windows, testing a build is the most useful contribution
+right now. See
 [PACKAGING.md](PACKAGING.md) for build instructions and the manual checks.
 
 ## Development
@@ -289,4 +296,5 @@ Released under the [MIT Licence](LICENSE).
 
 ---
 
-If Shelldeck is useful to you, a star helps other people find it.
+If you like Shelldeck, please give it a ⭐ on GitHub. It helps other people
+find it, and it tells me the macOS and Windows apps are worth building next.

@@ -690,7 +690,7 @@ function renderVpn() {
     const on = active === "connected";
     const detail = vpnState.profile_id === v.id ? vpnState.detail : "";
     return `<div class="vpn" data-id="${v.id}">
-      <span class="vpn-name"><span class="dot ${active}"></span>${esc(v.name)}</span>
+      <span class="vpn-name"><span class="dot ${active}"></span><span>${esc(v.name)}</span></span>
       <span>
         <button class="vpn-go" data-id="${v.id}">${on || active === "connecting" ? "disconnect" : "connect"}</button>
         <button class="vpn-log" data-id="${v.id}" aria-label="VPN log for ${esc(v.name)}" title="Log">${icon("list")}</button>
