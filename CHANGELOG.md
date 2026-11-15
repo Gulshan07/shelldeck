@@ -2,7 +2,7 @@
 
 Notable changes per release. Dates are release dates.
 
-## Unreleased
+## v0.2.0 — 2026-11-15
 
 **VPN**
 - Choose how a profile's authenticator code is supplied: typed at connect time
