@@ -461,6 +461,13 @@ async def main():
         assert (await http.post("/api/vpn/nonexistent/up")).status_code == 404
         print("ok  vpn status and up/down endpoints respond")
 
+        r = await http.post("/api/vpn/code", json={"code": "123456"})
+        assert r.status_code == 400 and "not waiting" in r.json()["error"], r.text
+        r = await http.post("/api/vpn/code", json={"code": "12ab"})
+        assert r.status_code == 400 and "digit" in r.json()["error"], r.text
+        assert (await http.get("/api/vpn/status")).json()["pending_code"] is False
+        print("ok  a code nobody asked for is refused")
+
         await http.delete(f"/api/vpns/{vid}")
         assert server.vault.get("vpn:" + vid) == {}
         print("ok  deleting a vpn profile wipes its secrets")

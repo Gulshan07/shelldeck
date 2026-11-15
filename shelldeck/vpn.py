@@ -18,6 +18,11 @@ import urllib.parse
 from . import platform, store
 
 CONNECT_TIMEOUT = 90
+CODE_WAIT = 300              # how long a first connect waits for a typed code
+REJECTED = "authentication rejected"
+# The server rarely says which half was wrong, so neither message pretends to know.
+REJECTED_ASK = REJECTED + " — check the password and the code you typed"
+REJECTED_STORED = REJECTED + " — if the password is right, check this computer's clock"
 RUN_DIR = store.HOME / "run"
 
 
@@ -205,12 +210,33 @@ class Vpn:
         self._writer = None
         self._task = None
         self._files = []
+        self.pending_code = False
+        self._code = None            # future a typed authenticator code arrives on
+        self._mode = "none"
+
+    def _rejected(self) -> str:
+        return {"ask": REJECTED_ASK, "stored": REJECTED_STORED}.get(self._mode, REJECTED)
+
+    def submit_code(self, code: str):
+        """Hand over the authenticator code the management loop is waiting for."""
+        code = re.sub(r"\s+", "", code or "")
+        if not re.fullmatch(r"\d{6,8}", code):
+            raise VpnError("enter the 6 to 8 digit code")
+        if self._code is None or self._code.done():
+            raise VpnError("not waiting for a code")
+        self._code.set_result(code)
+
+    def _drop_code_wait(self):
+        if self._code is not None and not self._code.done():
+            self._code.set_result(None)
+        self.pending_code = False
 
     def status(self) -> dict:
         return {
             "state": self.state, "detail": self.detail, "name": self.name,
             "profile_id": self.profile_id, "ip": self.ip,
             "uptime": int(time.time() - self.since) if self.since else 0,
+            "pending_code": self.pending_code,
             "log": self.log[-80:],
         }
 
@@ -221,7 +247,7 @@ class Vpn:
     # --- lifecycle -------------------------------------------------------
 
     async def up(self, profile: dict, secret: dict):
-        if self.state in ("connecting", "connected"):
+        if self.state in ("connecting", "connected", "needs_code"):
             raise VpnError(f"{self.name} is already {self.state}")
         if self._proc is not None and self._proc.returncode is None:
             # State can read failed while openvpn is alive (e.g. status was missed).
@@ -243,6 +269,7 @@ class Vpn:
         self.reset()
         self.profile_id, self.name = profile["id"], profile["name"]
         self.state, self.detail = "connecting", "starting openvpn"
+        self._mode = totp_mode_of(profile, secret)
 
         platform.make_private_dir(RUN_DIR)
         cfg = RUN_DIR / f"{profile['id']}.ovpn"
@@ -273,6 +300,7 @@ class Vpn:
         self._task = asyncio.create_task(self._manage(port, mgmt_pw, profile, secret))
 
     async def down(self):
+        self._drop_code_wait()
         if self._writer:
             with contextlib.suppress(Exception):
                 self._writer.write(b"signal SIGTERM\n")
@@ -314,6 +342,9 @@ class Vpn:
                     if self.state != "connected":
                         self.state, self.detail = "connected", "connected"
                         self.since = time.time()
+                if "AUTH_FAILED" in text:
+                    # A refused login reaches us here, not always on the management socket.
+                    self.state, self.detail, self.since = "failed", self._rejected(), None
                 if "sudo:" in text or "a password is required" in text:
                     self.state = "failed"
                     self.detail = ("openvpn needs root. Store a sudo password in the profile, "
@@ -323,6 +354,7 @@ class Vpn:
             self.state = "failed" if self.state == "connecting" else "disconnected"
             self.detail = self.detail or f"openvpn exited ({proc.returncode})"
             self.since = None
+        self._drop_code_wait()
         self._cleanup()
 
     # --- management interface --------------------------------------------
@@ -341,6 +373,7 @@ class Vpn:
             self.state, self.detail = "failed", "management interface never came up"
             return
 
+        deadline = time.time() + CONNECT_TIMEOUT
         dialect = profile.get("dialect") or "auto"
         if dialect == "auto":
             dialect = detect_dialect(secret.get("ovpn", ""))
@@ -380,8 +413,35 @@ class Vpn:
                     yield buf.rstrip("\r")
                     buf = ""
 
+        async def typed_code():
+            """Ask mode: park until submit_code(), without eating the connect deadline."""
+            nonlocal deadline
+            live = self.state == "connected"
+            if not live:
+                self.state, self.detail = "needs_code", "waiting for authenticator code"
+            self.pending_code = True
+            self._code = asyncio.get_running_loop().create_future()
+            began = time.time()
+            try:
+                # A live tunnel waits as long as the server does; a first connect does not.
+                code = await asyncio.wait_for(self._code, None if live else CODE_WAIT)
+            except asyncio.TimeoutError:
+                code = None
+                self.state, self.detail = "failed", "no authenticator code entered"
+            finally:
+                self.pending_code = False
+            deadline += time.time() - began
+            if code and self.state == "needs_code":
+                self.state, self.detail = "connecting", "sending password + code"
+            return code
+
         async def answer_auth(challenge_state=None):
-            code = code_for(secret)
+            if self._mode == "ask":
+                code = await typed_code()
+                if code is None:              # timed out, disconnected, or openvpn went away
+                    return
+            else:
+                code = code_for(secret)
             if challenge_state:                    # dynamic challenge: code only
                 value = f"CRV1::{challenge_state}::{code}"
             else:
@@ -389,7 +449,6 @@ class Vpn:
             await send(f'username "Auth" "{_esc(profile.get("username", ""))}"')
             await send(f'password "Auth" "{_esc(value)}"')
 
-        deadline = time.time() + CONNECT_TIMEOUT
         try:
             stream = lines()
             while True:
@@ -412,8 +471,11 @@ class Vpn:
                 elif line.startswith(">HOLD:"):
                     await send("hold release")
                 elif line.startswith(">PASSWORD:Need 'Auth'"):
-                    self.detail = "sending password + TOTP"
+                    if self.state != "connected":
+                        self.detail = "sending password + TOTP"
                     await answer_auth()
+                    if self.state == "failed":
+                        return
                 elif line.startswith(">PASSWORD:Need 'Private Key'"):
                     await send(f'password "Private Key" "{_esc(secret.get("key_passphrase", ""))}"')
                 elif line.startswith(">PASSWORD:Verification Failed: 'Auth'"):
@@ -423,7 +485,7 @@ class Vpn:
                         self.detail = "answering challenge with a fresh code"
                         await answer_auth(m.group(1))
                     else:
-                        self.state, self.detail = "failed", "authentication rejected"
+                        self.state, self.detail = "failed", self._rejected()
                         return
                 elif line.startswith(">STATE:"):
                     parts = line[len(">STATE:"):].split(",")
@@ -436,7 +498,10 @@ class Vpn:
                             self.since = time.time()
                             self.detail = "connected"
                         elif name == "EXITING":
-                            self.state = "disconnected"
+                            if "auth-failure" in line:
+                                self.state, self.detail = "failed", self._rejected()
+                            elif self.state != "failed":
+                                self.state = "disconnected"
                             return
                 elif line.startswith(">FATAL:") or line.startswith(">LOG:") and ",F," in line:
                     self.state, self.detail = "failed", line.split(":", 1)[-1][:200]

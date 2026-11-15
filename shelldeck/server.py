@@ -562,6 +562,16 @@ async def vpn_up(request):
 
 
 @api
+async def vpn_code(request):
+    """The authenticator code for a profile that stores no key."""
+    try:
+        vpn.submit_code(str((await request.json()).get("code", "")))
+    except VpnError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(vpn.status())
+
+
+@api
 async def vpn_down(request):
     await vpn.down()
     return JSONResponse(vpn.status())
@@ -1174,6 +1184,7 @@ app = Starlette(
         Route("/api/vpns/{vid}", delete_vpn, methods=["DELETE"]),
         Route("/api/vpn/status", vpn_status),
         Route("/api/vpn/{vid}/up", vpn_up, methods=["POST"]),
+        Route("/api/vpn/code", vpn_code, methods=["POST"]),
         Route("/api/vpn/down", vpn_down, methods=["POST"]),
         WebSocketRoute("/ws/ssh", ssh_ws),
         WebSocketRoute("/ws/sftp", sftp_ws),

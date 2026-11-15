@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fake openvpn speaking the real management protocol, for tests.
 
-Scenario comes from FAKE_VPN_MODE: ok | challenge | badpass | noprompt-pw
+Scenario comes from FAKE_VPN_MODE: ok | challenge | badpass | nostate | reauth | authfailed
 Expected credentials from FAKE_VPN_PASSWORD / FAKE_VPN_TOTP.
 """
 import base64, hashlib, hmac, os, socket, struct, sys, time
@@ -60,6 +60,16 @@ send(">INFO:OpenVPN Management Interface Version 3")
 send("ENTER PASSWORD:", nl=False)
 send("SUCCESS: password is correct")
 
+def check(value):
+    if value.startswith("SCRV1:"):
+        _, pw_b64, otp_b64 = value.split(":")
+        return (base64.b64decode(pw_b64).decode() == want_pw
+                and base64.b64decode(otp_b64).decode() in valid_codes())
+    if value.startswith("CRV1::"):
+        return value.split("::")[2] in valid_codes()
+    return any(value == want_pw + c for c in valid_codes())
+
+
 hold_released = False
 sent_prompt = False
 challenged = False
@@ -78,22 +88,25 @@ while True:
     elif line == "hold release":
         hold_released = True
         send("SUCCESS: hold release succeeded")
-        sc = any(l.strip().startswith("static-challenge") for l in cfg.splitlines())
-        send(">PASSWORD:Need 'Auth' username/password" + (" SC:1,Enter Authenticator Code" if sc else ""))
+        # Real openvpn asks once; a redundant "hold release" does not ask again.
+        if not sent_prompt:
+            sc = any(l.strip().startswith("static-challenge") for l in cfg.splitlines())
+            send(">PASSWORD:Need 'Auth' username/password" + (" SC:1,Enter Authenticator Code" if sc else ""))
         sent_prompt = True
     elif line.startswith("username "):
         pass
     elif line.startswith("password "):
         value = line.split('"')[3]
-        ok = False
-        if value.startswith("SCRV1:"):
-            _, pw_b64, otp_b64 = value.split(":")
-            ok = (base64.b64decode(pw_b64).decode() == want_pw
-                  and base64.b64decode(otp_b64).decode() in valid_codes())
-        elif value.startswith("CRV1::"):
-            ok = value.split("::")[2] in valid_codes()
-        else:
-            ok = any(value == want_pw + c for c in valid_codes())
+        ok = check(value)
+        if mode == "authfailed":
+            # What a real server refusal looks like: no management verdict, just
+            # the control message in openvpn's own log and an exit.
+            print("AUTH: Received control message: AUTH_FAILED,TOTP two-factor "
+                  "authentication code is incorrect", flush=True)
+            print("SIGTERM[soft,auth-failure] received, process exiting", flush=True)
+            if state_on:
+                send(">STATE:1,EXITING,auth-failure,,,,,")
+            break
         if mode == "badpass":
             send(">PASSWORD:Verification Failed: 'Auth'")
             if state_on:
@@ -111,8 +124,16 @@ while True:
                 send(">STATE:%d,CONNECTED,SUCCESS,10.8.0.7,203.0.113.9,1194,," % int(time.time()))
             else:
                 print("Initialization Sequence Completed", flush=True)
-            while f.readline().strip() != "signal SIGTERM":
-                pass
+            if mode == "reauth":
+                # A server that re-checks credentials on a live tunnel.
+                time.sleep(0.5)
+                send(">PASSWORD:Need 'Auth' username/password")
+            while True:
+                got = f.readline()
+                if not got or got.strip() == "signal SIGTERM":
+                    break
+                if got.startswith("password "):
+                    print("REAUTH OK" if check(got.split('"')[3]) else "REAUTH FAILED", flush=True)
             if state_on:
                 send(">STATE:1,EXITING,exit-with-notification,,")
             break
