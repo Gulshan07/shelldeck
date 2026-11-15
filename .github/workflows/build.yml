@@ -45,7 +45,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # Build on the oldest supported Ubuntu: a binary only runs where glibc
+          # is at least as new as the one it was built against, and
+          # ubuntu-latest's is newer than most desktops (24.04 failed to start
+          # a v0.2.0 build made there).
+          - os: ubuntu-22.04
             label: linux
             binary: dist/Shelldeck
     runs-on: ${{ matrix.os }}
@@ -68,7 +72,7 @@ jobs:
         run: python packaging/smoke.py ${{ matrix.binary }}
 
       - name: Build AppImage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.label == 'linux'
         run: |
           set -e
           curl -sSL -o appimagetool \

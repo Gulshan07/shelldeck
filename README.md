@@ -67,7 +67,8 @@ chmod +x Shelldeck-x86_64.AppImage
 ./Shelldeck-x86_64.AppImage
 ```
 
-No Python and no dependencies are needed. If it fails with
+Runs on Ubuntu 22.04 or newer and other distributions of the same age (glibc
+2.35+). No Python and no dependencies are needed. If it fails with
 `libfuse.so.2: cannot open`, either run `sudo apt install libfuse2` or start it
 with `--appimage-extract-and-run`.
 
