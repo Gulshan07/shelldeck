@@ -20,7 +20,7 @@ test = ["httpx>=0.27,<0.29"]
 shelldeck = "shelldeck.__main__:main"
 
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
