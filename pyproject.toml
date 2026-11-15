@@ -6,7 +6,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 # websockets is not optional: plain uvicorn refuses WebSocket upgrades without it.
-dependencies = ["asyncssh>=2.14", "starlette>=0.37", "uvicorn>=0.30", "websockets>=12"]
+dependencies = ["asyncssh>=2.14", "starlette>=0.37", "uvicorn>=0.54.0", "websockets>=12"]
 
 [project.optional-dependencies]
 build = ["pyinstaller>=6"]
