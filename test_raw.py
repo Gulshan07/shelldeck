@@ -16,10 +16,11 @@ async def fake_telnet(port):
         await writer.drain()
         while True:
             data = await reader.read(1024)
-            if not data:
+            if not data or data.strip() == b"quit":
                 break
             writer.write(b"echo:" + data)      # echo what the client typed
             await writer.drain()
+        writer.close()                         # hang up, as a device does on logout
     srv = await asyncio.start_server(handle, "127.0.0.1", port)
     return srv
 
@@ -78,6 +79,16 @@ async def main():
             if got_enable and got_conf: break
         assert got_enable and got_conf, "macro should run over telnet"
         print("ok  macro runs over telnet")
+        # the device hanging up must end the session, not leave a dead pane
+        await ws.send(b"quit\r\n")
+        try:
+            while True:
+                await asyncio.wait_for(ws.recv(), timeout=5)
+        except websockets.exceptions.ConnectionClosed:
+            pass
+        except (asyncio.TimeoutError, TimeoutError):
+            raise AssertionError("the telnet peer hung up but the WebSocket stayed open")
+        print("ok  telnet hang-up closes the WebSocket")
 
     # serial with a missing device must report cleanly, not hang or crash
     async with websockets.connect(f"ws://127.0.0.1:{port}/ws/ssh",
