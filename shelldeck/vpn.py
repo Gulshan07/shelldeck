@@ -13,6 +13,7 @@ import re
 import secrets as pysecrets
 import struct
 import time
+import urllib.parse
 
 from . import platform, store
 
@@ -20,16 +21,134 @@ CONNECT_TIMEOUT = 90
 RUN_DIR = store.HOME / "run"
 
 
-def totp(secret_b32: str, when: float | None = None, digits: int = 6, period: int = 30) -> str:
+TOTP_ALGORITHMS = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
+NOT_TOTP = "not a TOTP key, otpauth:// link or Google Authenticator export link"
+NO_HOTP = "counter-based (HOTP) codes are not supported"
+
+
+def totp(secret_b32: str, when: float | None = None, digits: int = 6, period: int = 30,
+         algorithm: str = "SHA1") -> str:
     """RFC 6238 TOTP. Twelve lines of stdlib beats a dependency."""
     raw = re.sub(r"\s+", "", secret_b32).upper()
     raw += "=" * (-len(raw) % 8)
     key = base64.b32decode(raw)
     counter = int((time.time() if when is None else when) // period)
-    mac = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    mac = hmac.new(key, struct.pack(">Q", counter), TOTP_ALGORITHMS[algorithm]).digest()
     off = mac[-1] & 0x0F
     code = (int.from_bytes(mac[off:off + 4], "big") & 0x7FFFFFFF) % (10 ** digits)
     return str(code).zfill(digits)
+
+
+def code_for(secret: dict, when: float | None = None) -> str:
+    """The current code for a vault entry, or "" when it holds no key."""
+    if not secret.get("totp_secret"):
+        return ""
+    return totp(secret["totp_secret"], when, secret.get("totp_digits", 6),
+                secret.get("totp_period", 30), secret.get("totp_algorithm", "SHA1"))
+
+
+def _clean_key(text: str) -> str:
+    """Base32 as authenticators show it -> upper case, no spaces, no padding."""
+    key = re.sub(r"[\s=]+", "", text).upper()
+    if len(key) < 10 or not re.fullmatch(r"[A-Z2-7]+", key):
+        raise ValueError(NOT_TOTP)
+    try:
+        base64.b32decode(key + "=" * (-len(key) % 8))
+    except Exception:
+        raise ValueError(NOT_TOTP) from None
+    return key
+
+
+def _account(secret, label="", issuer="", digits=6, period=30, algorithm="SHA1") -> dict:
+    if algorithm not in TOTP_ALGORITHMS or digits not in (6, 7, 8) or not 1 <= period <= 3600:
+        raise ValueError(NOT_TOTP)
+    return {"label": label, "issuer": issuer, "secret": secret,
+            "digits": digits, "period": period, "algorithm": algorithm}
+
+
+def _pb_fields(buf: bytes):
+    """Minimal protobuf reader: yields (field number, value) for varint and
+    length-delimited fields, skipping fixed-width ones."""
+    i = 0
+
+    def varint():
+        nonlocal i
+        shift = n = 0
+        while True:
+            b = buf[i]
+            i += 1
+            n |= (b & 0x7F) << shift
+            shift += 7
+            if not b & 0x80:
+                return n
+
+    while i < len(buf):
+        tag = varint()
+        num, wire = tag >> 3, tag & 7
+        if wire == 0:
+            yield num, varint()
+        elif wire == 2:
+            size = varint()
+            if i + size > len(buf):
+                raise IndexError("truncated")
+            yield num, buf[i:i + size]
+            i += size
+        elif wire in (1, 5):
+            i += 8 if wire == 1 else 4
+        else:
+            raise ValueError("unsupported wire type")
+
+
+def _parse_migration(data: str) -> list:
+    """Google Authenticator's "Export accounts" payload."""
+    try:
+        # '+' is legal base64 but becomes a space in transit often enough to matter.
+        raw = base64.b64decode(urllib.parse.unquote(data).replace(" ", "+"), validate=True)
+        entries = [dict(_pb_fields(v)) for num, v in _pb_fields(raw) if num == 1]
+    except Exception:
+        raise ValueError(NOT_TOTP) from None
+    out = []
+    for e in entries:
+        if e.get(6) == 1 or not isinstance(e.get(1), bytes):       # HOTP, or no secret
+            continue
+        text = lambda v: v.decode(errors="replace") if isinstance(v, bytes) else ""
+        out.append(_account(base64.b32encode(e[1]).decode().rstrip("="), text(e.get(2)), text(e.get(3)),
+                            {2: 8}.get(e.get(5), 6), 30,
+                            {2: "SHA256", 3: "SHA512"}.get(e.get(4), "SHA1")))
+    if entries and not out:
+        raise ValueError(NO_HOTP)
+    if not out:
+        raise ValueError(NOT_TOTP)
+    return out
+
+
+def parse_totp_input(text: str) -> list:
+    """Whatever an authenticator hands out -> a list of TOTP accounts.
+
+    Accepts a bare base32 key, an otpauth://totp/ link, or Google
+    Authenticator's otpauth-migration:// export (which may hold several).
+    Raises ValueError with a message fit to show the user.
+    """
+    text = (text or "").strip()
+    low = text.lower()
+    if low.startswith("otpauth-migration://"):
+        query = urllib.parse.urlsplit(text).query
+        data = next((p[5:] for p in query.split("&") if p.startswith("data=")), "")
+        return _parse_migration(data)
+    if low.startswith("otpauth://"):
+        url = urllib.parse.urlsplit(text)
+        if url.netloc.lower() == "hotp":
+            raise ValueError(NO_HOTP)
+        q = {k.lower(): v[0] for k, v in urllib.parse.parse_qs(url.query).items()}
+        if url.netloc.lower() != "totp" or not q.get("secret"):
+            raise ValueError(NOT_TOTP)
+        try:
+            digits, period = int(q.get("digits", 6)), int(q.get("period", 30))
+        except ValueError:
+            raise ValueError(NOT_TOTP) from None
+        return [_account(_clean_key(q["secret"]), urllib.parse.unquote(url.path.lstrip("/")),
+                         q.get("issuer", ""), digits, period, q.get("algorithm", "SHA1").upper())]
+    return [_account(_clean_key(text))]
 
 
 def detect_dialect(ovpn_text: str) -> str:
@@ -257,7 +376,7 @@ class Vpn:
                     buf = ""
 
         async def answer_auth(challenge_state=None):
-            code = totp(secret["totp_secret"]) if secret.get("totp_secret") else ""
+            code = code_for(secret)
             if challenge_state:                    # dynamic challenge: code only
                 value = f"CRV1::{challenge_state}::{code}"
             else:

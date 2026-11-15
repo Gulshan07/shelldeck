@@ -255,6 +255,62 @@ def test_totp_rfc6238():
     assert totp(seed, when=100) != totp(seed, when=130)
 
 
+MIGRATION = ("otpauth-migration://offline?data=CigKCkhlbGxvId6tvu8SC2d1bHNoYW5AdnBuGgdWaXRyYXlhIAEoATACCj4KIDEy"
+             "MzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyEgtvcHNAZXhhbXBsZRoHRXhhbXBsZSACKAIwAgojCg5jb3VudGVyLXNl"
+             "Y3JldBIDb2xkGgZMZWdhY3kgASgBMAEQARgBIAA%3D")
+
+
+def test_totp_algorithms():
+    """RFC 6238 Appendix B, SHA-256 and SHA-512 seeds."""
+    from shelldeck.vpn import totp
+    import base64
+    b32 = lambda raw: base64.b32encode(raw).decode()
+    assert totp(b32(b"12345678901234567890123456789012"), when=59, digits=8, algorithm="SHA256") == "46119246"
+    assert totp(b32(b"1234567890123456789012345678901234567890123456789012345678901234"),
+                when=59, digits=8, algorithm="SHA512") == "90693936"
+
+
+def test_parse_totp_input():
+    from shelldeck.vpn import parse_totp_input, code_for, totp
+    [a] = parse_totp_input(" jbsw y3dp ehpk 3pxp== ")
+    assert a == {"label": "", "issuer": "", "secret": "JBSWY3DPEHPK3PXP",
+                 "digits": 6, "period": 30, "algorithm": "SHA1"}
+    [a] = parse_totp_input("otpauth://totp/Vitraya%3Agulshan%40vpn?secret=jbswy3dpehpk3pxp"
+                           "&issuer=Vitraya&digits=8&period=60&algorithm=SHA256")
+    assert a == {"label": "Vitraya:gulshan@vpn", "issuer": "Vitraya", "secret": "JBSWY3DPEHPK3PXP",
+                 "digits": 8, "period": 60, "algorithm": "SHA256"}
+    # Google export: two TOTP accounts; the HOTP entry is dropped
+    accts = parse_totp_input(MIGRATION)
+    assert [(x["label"], x["issuer"], x["digits"], x["algorithm"]) for x in accts] == [
+        ("gulshan@vpn", "Vitraya", 6, "SHA1"), ("ops@example", "Example", 8, "SHA256")]
+    assert accts[0]["secret"] == "JBSWY3DPEHPK3PXP" and accts[0]["period"] == 30
+    # the same link with the data left unencoded
+    assert parse_totp_input(MIGRATION.replace("%3D", "=")) == accts
+    # base64 '+' that a form or chat app turned into a space still decodes
+    import base64, urllib.parse
+    one = bytes([0x0a, 19, 0x0a, 5, 0, 0, 0xfb, 0xef, 0xbe, 0x12, 1, 0x78, 0x1a, 1, 0x79, 0x20, 1, 0x28, 1, 0x30, 2])
+    b64 = base64.b64encode(one).decode()
+    assert "+" in b64, b64
+    for data in (urllib.parse.quote(b64, safe=""), b64, b64.replace("+", " ")):
+        [x] = parse_totp_input("otpauth-migration://offline?data=" + data)
+        assert x["secret"] == base64.b32encode(b"\x00\x00\xfb\xef\xbe").decode().rstrip("="), data
+    for bad, msg in [("otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=1", "HOTP"),
+                     ("hello world!", "not a TOTP key"),
+                     ("otpauth://totp/x?issuer=nokey", "not a TOTP key"),
+                     ("otpauth-migration://offline?data=%%%", "not a TOTP key"),
+                     ("", "not a TOTP key")]:
+        try:
+            parse_totp_input(bad)
+            raise AssertionError(bad)
+        except ValueError as e:
+            assert msg in str(e), (bad, e)
+    assert code_for({"totp_secret": "JBSWY3DPEHPK3PXP"}, when=59) == totp("JBSWY3DPEHPK3PXP", when=59)
+    assert code_for({"totp_secret": "JBSWY3DPEHPK3PXP", "totp_digits": 8, "totp_period": 60,
+                     "totp_algorithm": "SHA256"}, when=59) == totp(
+                         "JBSWY3DPEHPK3PXP", when=59, digits=8, period=60, algorithm="SHA256")
+    assert code_for({}) == ""
+
+
 def test_vpn_password_dialects():
     import base64
     from shelldeck.vpn import build_password, detect_dialect
